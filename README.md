@@ -1,33 +1,33 @@
 # Massasoit Model Forge
 
-A modern, interactive dashboard built with Dash and Plotly for machine learning model visualization and analysis.
+A web application for running Generalized Additive Models (GAM) using R's `mgcv` package through a Python Dash interface.
 
 ## Features
 
-- Interactive data visualization
-- Model training and evaluation
-- Real-time updates
-- Responsive design
+- Upload your dataset (CSV or Excel)
+- Select response and predictor variables
+- Configure GAM model parameters
+- View model summary and diagnostic plots
+- Interactive visualization of partial effects
 
 ## Installation
 
 1. Clone the repository:
    ```bash
    git clone https://github.com/yourusername/MassasoitModelForge.git
-   cd MassasoitModelForge
    ```
 
-2. Create and activate a virtual environment:
-   ```bash
-   python -m venv venv
-   .\venv\Scripts\activate  # On Windows
-   source venv/bin/activate  # On macOS/Linux
-   ```
-
-3. Install the required packages:
+2. Install Python dependencies:
    ```bash
    pip install -r requirements.txt
    ```
+
+3. Install R and required packages:
+   - Download and install R from [CRAN](https://cran.r-project.org/)
+   - Open R and install the required package:
+     ```R
+     install.packages("mgcv")
+     ```
 
 ## Usage
 
@@ -36,22 +36,18 @@ A modern, interactive dashboard built with Dash and Plotly for machine learning 
    python app.py
    ```
 
-2. Open your web browser and navigate to:
-   ```
-   http://127.0.0.1:8050/
-   ```
+2. Open your web browser and navigate to `http://127.0.0.1:8050/`
+
+3. Follow the on-screen instructions to upload your data and run the GAM analysis.
 
 ## Project Structure
 
-```
-MassasoitModelForge/
-├── app.py              # Main application file
-├── requirements.txt   # Project dependencies
-├── README.md          # Project documentation
-├── .gitignore         # Specifies intentionally untracked files to ignore
-└── assets/            # Static files (CSS, images, etc.)
-    └── style.css     # Custom styles
-```
+- `app.py` - Main application file containing the Dash app
+- `requirements.txt` - Python dependencies
+- `.gitignore` - Specifies intentionally untracked files to ignore
+- `README.md` - Project documentation
+- `assets/` - Static files (CSS, images, etc.)
+  - `style.css` - Custom styles
 
 ## Contributing
 
@@ -63,4 +59,10 @@ MassasoitModelForge/
 
 ## License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- Built with [Dash](https://dash.plotly.com/) and [Plotly](https://plotly.com/)
+- Uses [rpy2](https://rpy2.github.io/) for R-Python integration
+- Styled with [Dash Bootstrap Components](https://dash-bootstrap-components.opensource.faculty.ai/)
