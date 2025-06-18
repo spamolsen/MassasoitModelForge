@@ -1,0 +1,4 @@
+pandas>=1.3.0
+numpy>=1.21.0
+openpyxl>=3.0.7  # For Excel file support
+matplotlib>=3.4.0  # For plotting (optional)
