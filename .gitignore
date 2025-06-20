@@ -30,9 +30,11 @@ wheels/
 venv/
 ENV/
 
-# Excel files in the data directory (but not the directory itself)
+# Excel files in the data directory (specific files are tracked)
 Base_Data_Files/*
 !Base_Data_Files/.gitkeep
+!Base_Data_Files/Final_SSO_ESA_Data.xlsx
+!Base_Data_Files/stats_bee_data.xlsx
 
 # OS generated files
 .DS_Store
