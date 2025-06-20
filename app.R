@@ -2,12 +2,36 @@ library(shiny)
 library(reticulate)
 library(DT)
 
-# Check if Python is available and load required Python modules
-use_python("C:\\Users\\TEKOWNER\\AppData\\Local\\Programs\\Python\\Python313\\python.exe")
+PYTHON_DEPENDENCIES = c('python_utils')
 
-# Import Python utilities
-py_utils <- import_from_path("python_utils", path = ".")
-data_utils <- py_utils$data_utils
+# Define Conda environment name
+conda_env_name = "MassasoitModelForge_env"
+
+# ------------------ App Miniconda setup ------------------- #
+
+# If you expect Miniconda to be installed externally or by a previous run,
+# you don't necessarily need to call install_miniconda() every time.
+# The error "Miniconda is already installed" confirms it's there.
+message("Miniconda is assumed to be installed and ready at path:", reticulate::miniconda_path())
+
+message(paste("Attempting to create/check Conda environment with name:", conda_env_name))
+
+# 2. Check if the Conda environment exists, create it if not.
+if (!(conda_env_name %in% reticulate::conda_list()$name)) {
+  message(paste("Creating Conda environment:", conda_env_name, "..."))
+  reticulate::conda_create(envname = conda_env_name, packages = c(paste0("python=", "3.10")))
+  message(paste("Conda environment", conda_env_name, "created."))
+} else {
+  message(paste("Conda environment", conda_env_name, "already exists."))
+}
+
+# Important: Now tell reticulate to use this environment
+reticulate::use_condaenv(conda_env_name, required = TRUE)
+
+# Install Python dependencies into the environment
+message(paste("Installing Python dependencies:", paste(PYTHON_DEPENDENCIES, collapse = ", "), "into", conda_env_name))
+reticulate::py_install(PYTHON_DEPENDENCIES, envname = conda_env_name, pip = TRUE)
+message("Python dependencies installed.")
 
 # UI definition with custom CSS
 ui <- tagList(
