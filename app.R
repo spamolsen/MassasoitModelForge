@@ -588,7 +588,6 @@ run_gamm_analysis <- function(df, response_var, predictor_vars, random_effect = 
 
 #####################################################################
 
-
 # UI definition with custom CSS
 ui <- fluidPage(
   useShinyjs(),
@@ -599,7 +598,7 @@ ui <- fluidPage(
          <meta http-equiv="Expires" content="0" />
          <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>'),
     # Include the external CSS file with version parameter
-    tags$link(rel = "stylesheet", type = "text/css", 
+    tags$link(rel = "stylesheet", type = "text/css",
              href = paste0("app_design.css?", as.integer(Sys.time()))),
     # Add favicon
     tags$link(rel = "icon", type = "image/png", href = "favicon.ico")
@@ -610,9 +609,10 @@ ui <- fluidPage(
     id = "landingPage",
     class = "landing-page",
     div(
+      id = "landingContent",
       class = "landing-content",
       h1("Welcome to the Massasoit Model Forge", class = "landing-title"),
-      div(class = "button-container",
+      div(id = "landingButtonContainer", class = "button-container",
         actionButton("enterAppBtn", "Enter Application", class = "app-btn"),
         actionButton("aboutBtn", "About Us", class = "app-btn")
       )
@@ -622,42 +622,22 @@ ui <- fluidPage(
   # About Page
   div(
     id = "aboutPage",
-    class = "page",
-    style = "display: none;
-             position: fixed;
-             top: 0;
-             left: 0;
-             width: 100%;
-             height: 100%;
-             background: url('Ian_Background_Image.jpg') 
-                 no-repeat center center fixed;
-             background-size: cover;
-             overflow-y: auto;
-             padding: 0;
-             margin: 0;",
+    class = "about-page-hidden about-background",
     # Dark overlay
-    div(
-      style = "position: fixed;
-      top: 0; left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.5);
-      z-index: 1;"
-    ),
+    div(id = "aboutPageOverlay", class = "page-overlay"),
     # Content wrapper
-    div(style = "position: relative; z-index: 2; min-height: 100%; padding-top: 80px;",
+    div(id = "aboutPageContentWrapper", class = "page-content-wrapper",
       # Header with title and logo
-      div(class = "app-header",
-        style = "position: fixed; top: 0; left: 0; right: 0; z-index: 1000;"
-      ,
-        div(class = "header-left",
+      div(id = "aboutPageHeader", class = "app-header",
+      # The position: fixed style is now handled by the .app-header class in CSS
+        div(id = "aboutHeaderLeft", class = "header-left",
           actionLink(
             "appTitleLink_about",
             "Massasoit Model Forge",
             class = "app-title-link"
           )
         ),
-        div(class = "header-right",
+        div(id = "aboutHeaderRight", class = "header-right",
           a(
             href = "https://massasoitstem.com/",
             target = "_blank",
@@ -671,38 +651,30 @@ ui <- fluidPage(
       ),
       # Main content
       div(
+        id = "aboutContainer",
         class = "about-container",
-        style = "max-width: 800px;
-        margin: 30px auto;
-        padding: 40px;
-        background: rgba(255, 255, 255, 0.95);
-        border-radius: 10px;
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
-        position: relative;
-        z-index: 2;",
         # About Us Section
-        h2("Who We Are"),
+        h2("Who We Are", id = "whoWeAreHeading"),
         p("  \t     We're ",
-          tags$a(id = "sammyLink", onclick = "event.preventDefault();", "Sammy Olsen", style = "color: #3498db; text-decoration: underline; cursor: pointer;"),
+          tags$a(id = "sammyLink", onclick = "event.preventDefault();", "Sammy Olsen", class = "profile-link"),
           " and ",
-          tags$a(id = "ianLink", onclick = "event.preventDefault();", "Ian Handy", style = "color: #3498db; text-decoration: underline; cursor: pointer;"),
+          tags$a(id = "ianLink", onclick = "event.preventDefault();", "Ian Handy", class = "profile-link"),
           ", data scientists who got \
         our start at Massasoit Community College. This app began as a \
         tool for a very specific purpose: to help make sense of over a \
         decade's worth of wild bee research in preparation for the \
         national Ecological Society of America conference in 2025."),
-        
+
         # Popup Modals
         tags$div(id = "sammyModal", class = "modal",
           tags$div(class = "modal-content",
             tags$span(class = "close", "×"),
-            div(style = "display: flex; flex-direction: column; align-items: center; gap: 20px;",
-              img(src = "sammy_bio_image.jpg", 
-                  style = "width: 200px; height: 200px; border-radius: 50%; object-fit: cover; border: 4px solid #3498db;",
+            div(id = "sammyModalProfileLayout", class = "modal-profile-layout",
+              img(src = "sammy_bio_image.jpg",
+                  class = "profile-image",
                   alt = "Sammy Olsen"),
-              div(style = "text-align: center;",
+              div(id = "sammyProfileDetails", class = "profile-details",
                 h3("Sammy Olsen"),
-                p("Data Scientist and co-creator of Massasoit Model Forge."),
                 p(HTML("<a href='https://github.com/spamolsen' target='_blank'>GitHub: spamolsen</a>"))
               )
             )
@@ -712,13 +684,12 @@ ui <- fluidPage(
         tags$div(id = "ianModal", class = "modal",
           tags$div(class = "modal-content",
             tags$span(class = "close", "×"),
-            div(style = "display: flex; flex-direction: column; align-items: center; gap: 20px;",
-              img(src = "ian_bio_placeholder.png", 
-                  style = "width: 200px; height: 200px; border-radius: 50%; object-fit: cover; object-position: center 20%; border: 4px solid #3498db;",
+            div(id = "ianModalProfileLayout", class = "modal-profile-layout",
+              img(src = "ian_bio_placeholder.png",
+                  class = "profile-image ian-profile-image", # Added specific class for Ian's image
                   alt = "Ian Handy"),
-              div(style = "text-align: center;",
+              div(id = "ianProfileDetails", class = "profile-details",
                 h3("Ian Handy"),
-                p("Data Scientist and co-creator of Massasoit Model Forge."),
                 p(HTML("<a href='https://github.com/ian-handy' target='_blank'>GitHub: ian-handy</a>"))
               )
             )
@@ -730,18 +701,18 @@ ui <- fluidPage(
           "// Get the modals
           var sammyModal = document.getElementById('sammyModal');
           var ianModal = document.getElementById('ianModal');
-          
+
           // Get the links that open the modals
           var sammyLink = document.getElementById('sammyLink');
           var ianLink = document.getElementById('ianLink');
-          
+
           // Get the <span> elements that close the modals
           var spans = document.getElementsByClassName('close');
-          
+
           // When the user clicks on a link, open the corresponding modal
           sammyLink.onclick = function() { sammyModal.style.display = 'block'; }
           ianLink.onclick = function() { ianModal.style.display = 'block'; }
-          
+
           // When the user clicks on <span> (x), close the modal
           for (var i = 0; i < spans.length; i++) {
             spans[i].onclick = function() {
@@ -749,7 +720,7 @@ ui <- fluidPage(
               ianModal.style.display = 'none';
             }
           }
-          
+
           // When the user clicks anywhere outside of the modal, close it
           window.onclick = function(event) {
             if (event.target == sammyModal || event.target == ianModal) {
@@ -777,16 +748,16 @@ ui <- fluidPage(
         for students, but designed to be powerful enough for anyone."),
 
         # Why We Built This Section
-        h3("Why We Built This"),
+        h3("Why We Built This", id = "whyWeBuiltThisHeading"),
         p("As community college students, we found that the tools for advanced \
         statistical analysis were either too expensive, opaque, or complex for \
         many in education and research. We \
         built this app to show that real science \
         can happen anywhere, when you give people the tools to do it."),
 
-        h3(" "),
+        h3(" ", id = "missionStatementHeading"), # Empty heading for spacing, can be styled with CSS
         p("Our mission is twofold:"),
-        tags$ul(
+        tags$ul(id = "missionList",
           tags$li("To create transparent, open-source tools that bring \
           the power of modern statistical modeling to everyone, across \
           disciplines."),
@@ -802,14 +773,14 @@ ui <- fluidPage(
         and excited about where this project can go."),
 
         # What It Does Section
-        h3("What It Does"),
+        h3("What It Does", id = "whatItDoesHeading"),
         p("Massasoit Model Forge is an open-source statistical modeling \
           application built with R Shiny and hosted through Posit Connect. \
           It integrates both R and Python \
           (via the ",
           span(
             "reticulate",
-            style = "font-family: 'Courier New', monospace;"
+            class = "code-package-name" # New class for code/package names
           ),
           " package) to \
           give users access to a broad set of tools for analyzing datasets— \
@@ -820,7 +791,7 @@ ui <- fluidPage(
           that could accommodate non-parametric, real-world ecological data. \
           It has since evolved into a general purpose modeling environment \
           that allows users to:"),
-        tags$ul(
+        tags$ul(id = "capabilitiesList",
           tags$li("Upload and examine structured data files. (CSV, Excel)"),
           tags$li("Run both parametric (e.g., GLMs, linear regression, ANOVA) \
           and non-parametric (e.g., \
@@ -829,7 +800,7 @@ ui <- fluidPage(
           visualizations without writing code.")
         ),
         h4("All through a guided interface with built in interpretability \
-        and error-checking!"),
+        and error-checking!", id = "guidedInterfaceHeading"),
         p("We’ll continue to expand the app’s capabilities, documentation, \
         and educational use cases. If you're working with data in an \
         under-resourced setting, this tool was built with you in mind. \
@@ -837,9 +808,9 @@ ui <- fluidPage(
         building. And we’re glad you’re here."),
 
         # Contact Information
-        h3("Contact Information"),
+        h3("Contact Information", id = "contactInfoHeading"),
         p("Click on our names above to learn more about us or reach out through GitHub."),
-        tags$ul(
+        tags$ul(id = "contactList",
           tags$li(tags$a(href = "https://github.com/spamolsen", target = "_blank", "GitHub: spamolsen")),
           tags$li(tags$a(href = "https://github.com/ian-handy", target = "_blank", "GitHub: ian-handy"))
         )
@@ -850,38 +821,21 @@ ui <- fluidPage(
   # Main Application Content
   div(
     id = "mainApp",
-    class = "page",
-    style = "display: none;
-             position: fixed;
-             top: 0;
-             left: 0;
-             width: 100%;
-             height: 100%;
-             background: url('Ian_Background_Image.jpg') 
-                 no-repeat center center fixed;
-             background-size: cover;
-             overflow-y: auto;",
+    class = "main-app-hidden main-background",
     # Dark overlay
-    div(
-      style = "position: fixed;
-      top: 0; left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.5);
-      z-index: 1;"
-    ),
+    div(id = "mainAppOverlay", class = "page-overlay"),
     # Content wrapper
-    div(style = "position: relative; z-index: 2; min-height: 100%;",
+    div(id = "mainAppContentWrapper", class = "page-content-wrapper",
       # Header with title and logo
-      div(class = "app-header",
-        div(class = "header-left",
+      div(id = "mainAppHeader", class = "app-header",
+        div(id = "mainHeaderLeft", class = "header-left",
           actionLink(
             "appTitleLink",
             "Massasoit Model Forge",
             class = "app-title-link"
           )
         ),
-        div(class = "header-right",
+        div(id = "mainHeaderRight", class = "header-right",
           a(href = "https://massasoitstem.com/", target = "_blank",
             img(
               src = "STEMlogowithBackground.png",
@@ -892,21 +846,20 @@ ui <- fluidPage(
         )
       ),
 
-      
-      # Main content row with sidebar and results
       # Transparent spacer div for layout
-      div(style = "height: 40px; margin: 20px 0;"),
-      
-      div(class = "container-fluid",
-        div(class = "row",
+      div(id = "mainContentSpacer", class = "content-spacer"),
+
+      div(id = "mainAppContainerFluid", class = "container-fluid",
+        div(id = "mainAppRow", class = "row",
           # Sidebar with data/analysis controls (left side)
-          div(class = "col-md-4",
-            div(class = "sidebar-panel", style = "background-color: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
+          div(id = "sidebarCol", class = "col-md-4",
+            div(id = "sidebarPanel", class = "sidebar-panel",
               tabsetPanel(
                 id = "sidebarTabs",
                 tabPanel(
                   "Data",
-                  div(class = "form-group",
+                  id = "dataTabPanel", # Unique ID for tabPanel
+                  div(id = "dataSourceGroup", class = "form-group",
                     radioButtons(
                       "dataSource",
                       "Choose data source:",
@@ -922,7 +875,8 @@ ui <- fluidPage(
                   # Conditional panel for base file selection
                   conditionalPanel(
                     condition = "input.dataSource == 'base'",
-                    div(class = "form-group",
+                    id = "baseFileConditionalPanel",
+                    div(id = "baseFileGroup", class = "form-group",
                       selectInput(
                         "baseFile",
                         "Select base file:",
@@ -939,7 +893,8 @@ ui <- fluidPage(
                   # Conditional panel for file upload
                   conditionalPanel(
                     condition = "input.dataSource == 'upload'",
-                    div(class = "form-group",
+                    id = "fileUploadConditionalPanel",
+                    div(id = "fileUploadGroup", class = "form-group",
                       fileInput(
                         "file1",
                         label = span("Choose File(s)", class = "file-input-label"),
@@ -957,9 +912,10 @@ ui <- fluidPage(
                   # Conditional panel for online databases
                   conditionalPanel(
                     condition = "input.dataSource == 'api'",
-                    div(class = "form-group",
+                    id = "apiSourceConditionalPanel",
+                    div(id = "apiSourceGroup", class = "form-group",
                       selectInput(
-                        "apiSource", 
+                        "apiSource",
                         "Select Data Source:",
                         choices = c("Traffic", "Visual Crossing")
                       ),
@@ -967,9 +923,10 @@ ui <- fluidPage(
                       uiOutput("apiParams")
                     )
                   ),
-                  
-                  actionButton("loadData", "Load Data", class = "btn-primary"),
-                  
+
+                  actionButton("loadData", "Load Data", class = "btn-primary load-data-btn"), # Added specific class
+                  # The margin-top style is moved to CSS under .load-data-btn
+
                   # Add JavaScript to switch to Analyze tab when Load Data is clicked
                   tags$script(HTML("
                     $(document).on('shiny:inputchanged', function(event) {
@@ -979,13 +936,13 @@ ui <- fluidPage(
                         }, 300);
                       }
                     });
-                  ")),
-                  style = "margin-top: 10px;"
+                  "))
                 ),
-                
+
                 tabPanel(
                   "Analyze",
-                  div(class = "form-group",
+                  id = "analyzeTabPanel", # Unique ID for tabPanel
+                  div(id = "analysisTypeGroup", class = "form-group",
                     selectInput(
                       "analysisType",
                       "Select Analysis Type:",
@@ -1021,46 +978,51 @@ ui <- fluidPage(
                   uiOutput("analysisParams"),
 
                   # Action button to run the selected analysis
-                  actionButton("runAnalysis", "Run Analysis", class = "btn-primary")
+                  actionButton("runAnalysis", "Run Analysis", class = "btn-primary run-analysis-btn") # Added specific class
                 )
               )
             )
           ),
-          
+
           # Main content area with results tabs (right side)
-          div(class = "col-md-8",
-            div(class = "main-panel", style = "background-color: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
+          div(id = "mainContentCol", class = "col-md-8",
+            div(id = "mainPanel", class = "main-panel",
               tabsetPanel(
                 id = "mainTabs",
                 tabPanel(
                   "View File",
-                  div(class = "table-responsive",
+                  id = "viewFileTabPanel", # Unique ID for tabPanel
+                  div(id = "dataTableContainer", class = "table-responsive",
                     DTOutput("dataTable")
                   )
                 ),
-                
+
                 tabPanel("Data Summary",
-                  div(class = "summary-output",
+                  id = "dataSummaryTabPanel", # Unique ID for tabPanel
+                  div(id = "summaryOutput", class = "summary-output",
                     verbatimTextOutput("summary")
                   )
                 ),
-                
+
                 tabPanel("Analysis Results",
+                  id = "analysisResultsTabPanel", # Unique ID for tabPanel
                   conditionalPanel(
                     condition = "output.analysisPlot_available == true",
-                    div(class = "plot-container",
+                    id = "analysisPlotConditional",
+                    div(id = "analysisPlotContainer", class = "plot-container",
                       plotOutput("analysisPlot", height = "500px")
                     )
                   ),
-                  
+
                   conditionalPanel(
                     condition = "output.analysisPlot_available == false",
-                    div(class = "alert alert-info",
+                    id = "noPlotAvailableConditional",
+                    div(id = "noPlotAlert", class = "alert alert-info",
                       "No plot available for this analysis type or an error occurred."
                     )
                   ),
-                  
-                  div(class = "results-output",
+
+                  div(id = "analysisResultsOutput", class = "results-output",
                     verbatimTextOutput("analysisResults")
                   )
                 )
