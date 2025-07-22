@@ -26,10 +26,11 @@ library(BSDA)
 # reticulate::use_condaenv("MassasoitModelForge_env", required = TRUE)
 
 # # Install required Python packages
-# reticulate::py_install(c("pandas", "numpy", "scipy", "scikit-learn"), envname = "MassasoitModelForge_env")
+# reticulate::py_install(c("weather-gov","pandas", "numpy", "scipy", "scikit-learn"), envname = "MassasoitModelForge_env")
 
 # # Verify the installation
 # reticulate::py_module_available("pandas")
+# reticulate::py_module_available("weather-gov")
 
 # Rscript -e "shiny::runApp('app.R', host = '0.0.0.0', port = 8000, launch.browser = TRUE)"
 
