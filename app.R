@@ -1,5 +1,5 @@
-suppressPackageStartupMessages({
   library(shiny)
+suppressPackageStartupMessages({
   library(shinyjs) # For JavaScript operations in Shiny
   library(reticulate)
   library(DT)
@@ -15,11 +15,12 @@ suppressPackageStartupMessages({
   library(ggplot2)
   library(BSDA)
 })
+message("\n---\n***Starting Shiny app\n")
 # Set up Python environment
 env_name <- "MassasoitModelForge_env"
 
 # Create/check Conda environment
-message(paste("\nChecking for", env_name, "environment:"))
+message(paste("\n***Checking for", env_name, "environment:"))
 
 if (!(env_name %in% reticulate::conda_list()$name)) {
   reticulate::conda_create(
@@ -31,20 +32,28 @@ if (!(env_name %in% reticulate::conda_list()$name)) {
   message(paste("\tEnvironment present.\n"))
 }
 
-installed_packages <- reticulate::conda_list()$packages
+installed_packages <- py_list_packages(env_name)[[3]]
 
 required_packages <- readLines("requirements.txt")
 
-missing_packages <- setdiff(installed_packages, required_packages)
+missing_packages <- setdiff(gsub("([>=]).*", "", required_packages), gsub("([>=]).*", "", installed_packages))
+
+#Print list of required and missing packages if any
+if (length(missing_packages) > 0) {
+  message(paste("***Packages required:\n\t", paste(required_packages, collapse = "\n\t")))
+  message(paste("***Packages missing:\n\t", paste(missing_packages, collapse = "\n\t")))
+}
 
 # Install Python packages
-for (pkg in missing_packages) {
-  reticulate::py_install(
-    pkg,
-    envname = env_name,
-    pip = TRUE,
-    ignore_installed = FALSE
-  )
+if (length(missing_packages) > 0) {
+  for (pkg in missing_packages) {
+    reticulate::py_install(
+      pkg,
+      envname = env_name,
+      pip = TRUE,
+      ignore_installed = FALSE
+    )
+  }
 }
 
 # Initialize environment
@@ -2112,5 +2121,6 @@ output$analysisResults <- renderPrint({
   })
 }
 
+message("\n***Starting Shiny app\n---\n")
 # Run the application
 shinyApp(ui = ui, server = server)
