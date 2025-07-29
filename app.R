@@ -14,15 +14,10 @@ library(readxl)
 library(ggplot2)
 library(BSDA)
 
-# Initialize Python environment setup
-if (!requireNamespace("reticulate", quietly = TRUE)) {
-  install.packages("reticulate")
-}
-
 # Set up Conda environment
 conda_path <- Sys.getenv("CONDA_EXE")
 if (is.na(conda_path)) {
-  conda_path <- "C:/Users/TEKOWNER/AppData/Local/r-miniconda"
+  stop("Conda not found. Please install Miniconda/Anaconda or set the CONDA_EXE environment variable.")
 }
 
 # Create environment if it doesn't exist
