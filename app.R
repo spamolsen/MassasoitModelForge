@@ -887,7 +887,7 @@ ui <- fluidPage(
       )
     )
   ),
-
+ 
   # Main Application Content
   div(
     id = "mainApp",
@@ -1003,30 +1003,40 @@ ui <- fluidPage(
 
                   # Conditional panel for online databases
                   conditionalPanel(
-                    condition = "input.useOnlineDatabases",
+                    condition = "input.useOnlineDatabases == true",
                     div(class = "form-group",
+                      h5("Online Data Sources"),
                       selectInput(
-                        "apiSource", 
+                        "onlineDataSource", 
                         "Select Data Source:",
-                        choices = c("Traffic", "NOAA NCEI Weather Data" = "ncei")
+                        choices = c("NOAA NCEI" = "noaa")
                       ),
-                      uiOutput("apiParams")
-                    )
-                  ),
-
-                  # Conditional panel for NOAA NCEI integration
-                  conditionalPanel(
-                    condition = "input.apiSource == 'ncei'",
-                    div(class = "form-group",
-                      wellPanel(
-                        h4("NOAA NCEI Weather Data Integration"),
-                        textInput("ncei_token", "NOAA API Token", ""),
-                        numericInput("latitude", "Latitude", value = 42.18),
-                        numericInput("longitude", "Longitude", value = -71.17),
-                        actionButton("find_stations", "Find Nearby Stations"),
-                        selectInput("selected_station", "Select Station", choices = NULL),
-                        actionButton("fetch_weather", "Fetch Weather Data"),
-                        checkboxInput("append_to_data", "Append to existing data", value = TRUE)
+                      
+                      # NOAA API Token Input
+                      conditionalPanel(
+                        condition = "input.onlineDataSource == 'noaa'",
+                        div(
+                          textInput(
+                            "ncei_token", 
+                            label = "NOAA API Token:",
+                            value = "",
+                            placeholder = "Enter your NOAA NCEI API token"
+                          ),
+                          helpText(
+                            "Get a free API token from ",
+                            a("https://www.ncdc.noaa.gov/cdo-web/token", 
+                              href = "https://www.ncdc.noaa.gov/cdo-web/token",
+                              target = "_blank")
+                          ),
+                          
+                          # Coordinates and Station Search
+                          numericInput("latitude", "Latitude", value = 42.18),
+                          numericInput("longitude", "Longitude", value = -71.17),
+                          actionButton("find_stations", "Find Nearby Stations"),
+                          selectInput("selected_station", "Select Station", choices = NULL),
+                          actionButton("fetch_weather", "Fetch Weather Data"),
+                          checkboxInput("append_to_data", "Append to existing data", value = TRUE)
+                        )
                       )
                     )
                   ),
@@ -1089,7 +1099,7 @@ ui <- fluidPage(
               )
             )
           ),
-          
+
           # Main content area with results tabs (right side)
           div(class = "col-md-8",
             div(class = "main-panel", style = "background-color: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
@@ -1101,13 +1111,13 @@ ui <- fluidPage(
                     DTOutput("dataTable")
                   )
                 ),
-                
+
                 tabPanel("Data Summary",
                   div(class = "summary-output",
                     verbatimTextOutput("summary")
                   )
                 ),
-                
+
                 tabPanel("Analysis Results",
                   conditionalPanel(
                     condition = "output.analysisPlot_available == true",
@@ -1115,14 +1125,13 @@ ui <- fluidPage(
                       plotOutput("analysisPlot", height = "500px")
                     )
                   ),
-                  
+
                   conditionalPanel(
                     condition = "output.analysisPlot_available == false",
                     div(class = "alert alert-info",
                       "No plot available for this analysis type or an error occurred."
                     )
                   ),
-                  
                   div(class = "results-output",
                     verbatimTextOutput("analysisResults")
                   )
@@ -1140,47 +1149,117 @@ ui <- fluidPage(
 server <- function(input, output, session) {
   # Initialize NOAA client
   ncei_client <- reactive({
-    if (is.null(input$ncei_token) || input$ncei_token == "") {
-      NULL
-    } else {
-      ncei$NOAANCEIClient()
-    }
+    req(input$ncei_token)
+
+    # Add some debug output
+    print("Initializing NOAA client...")
+    print(paste("Using token:", substr(input$ncei_token, 1, 5), "..."))
+
+    tryCatch({
+      # Initialize the Python client with the token
+      ncei <- import("noaa_ncei")
+      print("Python module imported successfully")
+      
+      client <- ncei$NOAANCEIClient(token = input$ncei_token)
+      print("NOAA client created successfully")
+      
+      return(client)
+    }, error = function(e) {
+      error_msg <- paste("Error initializing NOAA client:", e$message)
+      print(error_msg)
+      print(paste("Error details:", e$message))
+      if (!is.null(e$parent)) {
+        print(paste("Parent error:", e$parent$message))
+      }
+      showNotification(error_msg, type = "error")
+      return(NULL)
+    })
   })
 
   # Find nearby stations
   observeEvent(input$find_stations, {
-    if (is.null(ncei_client())) return(NULL)
+    print("Find stations button clicked")
+    print(paste("Using coordinates:", input$latitude, input$longitude))
+    
+    if (is.null(ncei_client())) {
+      error_msg <- "NOAA client is not initialized. Please check your API token."
+      print(error_msg)
+      showNotification(error_msg, type = "error")
+      return(NULL)
+    }
+
+    showNotification("Searching for nearby stations...", type = "message")
     
     tryCatch({
-      # Get location ID first
-      location_id <- ncei_client()$get_location_by_coordinates(
-        input$latitude, input$longitude
+      print("Calling get_location_by_coordinates...")
+      station_id <- ncei_client()$get_location_by_coordinates(
+        as.numeric(input$latitude), 
+        as.numeric(input$longitude)
       )
       
-      if (!is.null(location_id)) {
-        # Then get stations using the location ID
-        stations <- ncei_client()$get_stations(location = location_id)
+      print(paste("Received station_id:", station_id))
+      
+      if (is.null(station_id) || is.na(station_id) || station_id == "") {
+        warning_msg <- "No stations found near the specified coordinates. Please try different coordinates."
+        print(warning_msg)
+        showNotification(warning_msg, type = "warning")
+        return()
+      }
+      
+      print("Fetching station details...")
+      stations <- ncei_client()$get_stations(location = station_id)
+      print("Station details received:")
+      print(str(stations))
+      
+      if (is.null(stations) || is.null(stations$results) || length(stations$results) == 0) {
+        showNotification("No station data available for the selected location.", type = "warning")
+        return()
+      }
+      
+      # Create stations data frame
+      stations_df <- data.frame(
+        id = sapply(stations$results, function(x) x$id),
+        name = sapply(stations$results, function(x) x$name),
+        latitude = sapply(stations$results, function(x) x$latitude),
+        longitude = sapply(stations$results, function(x) x$longitude),
+        elevation = sapply(stations$results, function(x) x$elevation)
+      )
+      
+      output$stations_table <- renderDT({
+        datatable(stations_df)
+      })
+      
+      updateSelectInput(session, "selected_station", 
+                       choices = stations_df$id,
+                       selected = stations_df$id[1])
+      
+      showNotification("Station data loaded successfully.", type = "message")
+      
+    }, error = function(e) {
+      error_msg <- paste("Error fetching stations:")
+      if (!is.null(e$message)) {
+        error_msg <- paste(error_msg, e$message)
+      }
+      if (!is.null(e$parent)) {
+        error_msg <- paste(error_msg, "\nParent error:", e$parent$message)
+      }
+      showNotification(error_msg, type = "error")
+      
+      # Print detailed error to console
+      print("Detailed error:")
+      print(e)
+      
+      # Try to get Python error if any
+      if (requireNamespace("reticulate", quietly = TRUE)) {
+        py_error <- tryCatch({
+          reticulate::py_last_error()
+        }, error = function(e) NULL)
         
-        if (!is.null(stations) && !is.null(stations$results)) {
-          stations_df <- data.frame(
-            id = sapply(stations$results, function(x) x$id),
-            name = sapply(stations$results, function(x) x$name),
-            latitude = sapply(stations$results, function(x) x$latitude),
-            longitude = sapply(stations$results, function(x) x$longitude),
-            elevation = sapply(stations$results, function(x) x$elevation)
-          )
-          
-          output$stations_table <- renderDT({
-            datatable(stations_df)
-          })
-          
-          updateSelectInput(session, "selected_station", 
-                           choices = stations_df$id,
-                           selected = stations_df$id[1])
+        if (!is.null(py_error)) {
+          print("Python error details:")
+          print(py_error)
         }
       }
-    }, error = function(e) {
-      showNotification(paste("Error fetching stations: ", e$message), type = "error")
     })
   })
 
