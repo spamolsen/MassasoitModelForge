@@ -1,58 +1,49 @@
-library(shiny)
-library(shinyjs) # For JavaScript operations in Shiny
-library(reticulate)
-library(DT)
-library(readxl) # For reading Excel files
-library(lme4)   # For GLMMs
-library(mgcv)   # For GAMs/GAMMs
-library(MASS)   # For Negative Binomial Regression (glm.nb)
-library(pscl)   # For Zero-Inflated and Hurdle models
-library(geepack) # For GEE
-library(spgwr) # For GWR
-library(readr)
-library(readxl)
-library(ggplot2)
-library(BSDA)
-
+suppressPackageStartupMessages({
+  library(shiny)
+  library(shinyjs) # For JavaScript operations in Shiny
+  library(reticulate)
+  library(DT)
+  library(readxl) # For reading Excel files
+  library(lme4)   # For GLMMs
+  library(mgcv)   # For GAMs/GAMMs
+  library(MASS)   # For Negative Binomial Regression (glm.nb)
+  library(pscl)   # For Zero-Inflated and Hurdle models
+  library(geepack) # For GEE
+  library(spgwr) # For GWR
+  library(readr)
+  library(readxl)
+  library(ggplot2)
+  library(BSDA)
+})
 # Set up Python environment
 env_name <- "MassasoitModelForge_env"
 
-# Set up Conda environment
-conda_path <- Sys.getenv("CONDA_EXE")
-if (is.na(conda_path)) {
-  stop("Conda not found. Please install Miniconda/Anaconda or set the CONDA_EXE environment variable.")
-}
-
 # Create/check Conda environment
+message(paste("\nChecking for", env_name, "environment:"))
+
 if (!(env_name %in% reticulate::conda_list()$name)) {
-  message(paste("Creating Conda environment:", env_name, "..."))
   reticulate::conda_create(
     envname = env_name,
     packages = c(paste0("python=", "3.10"))
   )
-  message(paste("Conda environment", env_name, "created."))
+  message(paste("\tEnvironment created.\n"))
 } else {
-  message(paste("Conda environment", env_name, "already exists."))
+  message(paste("\tEnvironment present.\n"))
 }
 
-# Install Python packages
-packages <- c(
-  "pandas>=1.3.0",
-  "numpy>=1.21.0",
-  "scipy>=1.8.0",
-  "scikit-learn>=1.0.0",
-  "python-dateutil>=2.8.2",
-  "pytz>=2020.1",
-  "requests>=2.26.0",
-  "openpyxl>=3.0.7"
-)
+installed_packages <- reticulate::conda_list()$packages
 
-for (pkg in packages) {
+required_packages <- readLines("requirements.txt")
+
+missing_packages <- setdiff(installed_packages, required_packages)
+
+# Install Python packages
+for (pkg in missing_packages) {
   reticulate::py_install(
     pkg,
     envname = env_name,
     pip = TRUE,
-    conda = conda_path
+    ignore_installed = FALSE
   )
 }
 
