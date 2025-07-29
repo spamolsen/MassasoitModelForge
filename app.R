@@ -14,134 +14,64 @@ library(readxl)
 library(ggplot2)
 library(BSDA)
 
+# Set up Python environment
+env_name <- "MassasoitModelForge_env"
+
 # Set up Conda environment
 conda_path <- Sys.getenv("CONDA_EXE")
 if (is.na(conda_path)) {
   stop("Conda not found. Please install Miniconda/Anaconda or set the CONDA_EXE environment variable.")
 }
 
-# Create environment if it doesn't exist
-env_name <- "MassasoitModelForge_env"
-if (!env_name %in% reticulate::conda_list()[["name"]]) {
-  reticulate::conda_create(envname = env_name, python_version = "3.10")
-  
-  # Install Python packages
-  packages <- c(
-    "pandas",
-    "numpy",
-    "scipy",
-    "scikit-learn",
-    "python-dateutil",
-    "pytz",
-    "requests",
-    "openpyxl"
+# Create/check Conda environment
+if (!(env_name %in% reticulate::conda_list()$name)) {
+  message(paste("Creating Conda environment:", env_name, "..."))
+  reticulate::conda_create(
+    envname = env_name,
+    packages = c(paste0("python=", "3.10"))
   )
-  
-  for (pkg in packages) {
-    reticulate::py_install(
-      pkg,
-      envname = env_name,
-      pip = TRUE,
-      conda = conda_path
-    )
-  }
+  message(paste("Conda environment", env_name, "created."))
+} else {
+  message(paste("Conda environment", env_name, "already exists."))
 }
 
-# Import Python modules
-library(reticulate)
-use_condaenv(env_name, required = TRUE)
-noaa_ncei <- import("noaa_ncei")
-
-# Verify Python packages are installed
-message("Verifying Python packages...")
-tryCatch({
-  message("Checking requests package...")
-  reticulate::py_module_available("requests")
-  message("Python packages verified successfully!")
-}, error = function(e) {
-  message("Error verifying Python packages:", conditionMessage(e))
-  message("Please check the Conda environment and try again.")
-  stop("Python environment setup failed. Please check the logs.")
-})
-
-# Load Python module
-ncei <- import("noaa_ncei")
-
-# Rscript -e "shiny::runApp('app.R', host = '0.0.0.0', port = 8000, launch.browser = TRUE)"
-
-# Initialize shinyjs
-shinyjs::useShinyjs()
-
-conda_env_name <- "MassasoitModelForge_env"
-
-# ------------------ App Miniconda setup ------------------- #
-
-message(
-  "Miniconda is assumed to be installed and ready at path:",
-  reticulate::miniconda_path()
+# Install Python packages
+packages <- c(
+  "pandas>=1.3.0",
+  "numpy>=1.21.0",
+  "scipy>=1.8.0",
+  "scikit-learn>=1.0.0",
+  "python-dateutil>=2.8.2",
+  "pytz>=2020.1",
+  "requests>=2.26.0",
+  "openpyxl>=3.0.7"
 )
 
-message(
-        paste(
-              "Attempting to create/check Conda environment with name:",
-              conda_env_name))
-
-# 2. Check if the Conda environment exists, create it if not.
-if (!(conda_env_name %in% reticulate::conda_list()$name)) {
-  message(paste("Creating Conda environment:", conda_env_name, "..."))
-  reticulate::conda_create(
-                           envname = conda_env_name,
-                           packages = c(paste0("python=", "3.10")))
-  message(paste("Conda environment", conda_env_name, "created."))
-} else {
-  message(paste("Conda environment", conda_env_name, "already exists."))
+for (pkg in packages) {
+  reticulate::py_install(
+    pkg,
+    envname = env_name,
+    pip = TRUE,
+    conda = conda_path
+  )
 }
 
-reticulate::use_condaenv(conda_env_name, required = TRUE)
+# Initialize environment
+reticulate::use_condaenv(env_name, required = TRUE)
 
-# Install Python dependencies
-install_python_deps <- function() {
-  if (!file.exists("requirements.txt")) {
-    message("requirements.txt not found. Creating with default dependencies...")
-    default_reqs <- c(
-      "pandas>=1.3.0",
-      "numpy>=1.21.0",
-      "openpyxl>=3.0.7",
-      "matplotlib>=3.4.0",
-      "scikit-learn>=1.0.0",
-      "scipy>=1.8.0",
-      "python-dateutil>=2.8.2",
-      "pytz>=2020.1"
-    )
-    writeLines(default_reqs, "requirements.txt")
-  }
-}
-suppressWarnings({
-  tryCatch({
-    install_python_deps()
-  }, error = function(e) {
-    message(
-            "Warning: Could not install Python dependencies: ",
-            conditionMessage(e))
-    message(
-            "Please install manually using: pip install -r requirements.txt")
-  })
-})
-
-# Check if Python is available and load required Python modules
+# Check Python availability and load modules
 tryCatch({
   if (!py_available(initialize = TRUE)) {
-    stop(
-         "Python is not available. Please install \
-          Python and ensure it's in your PATH.")
+    stop("Python is not available. Please install Python and ensure it's in your PATH.")
   }
 
   if (!file.exists("python_utils")) {
-    stop("python_utils directory not found. Please \
-    ensure it exists in the app directory.")
+    stop("python_utils directory not found. Please ensure it exists in the app directory.")
   }
+  
   py_utils <- import_from_path("python_utils", path = ".")
   data_utils <- py_utils$data_utils
+  noaa_ncei <- import("noaa_ncei")
 }, error = function(e) {
   stop("Error initializing Python: ", conditionMessage(e))
 })
