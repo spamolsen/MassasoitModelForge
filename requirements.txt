@@ -6,4 +6,3 @@ scikit-learn>=1.0.0
 scipy>=1.8.0
 python-dateutil>=2.8.2
 pytz>=2020.1
-weather-gov>=0.2
