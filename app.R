@@ -1249,8 +1249,8 @@ output$apiTabParams <- renderUI({
       textInput("tabApi_weatherLocation", "Location (Latitude,Longitude):", 
                placeholder = "e.g., 42.36,-71.06"),
       dateRangeInput("tabApi_weatherDates", "Date Range:",
-                    start = Sys.Date() - 7,
-                    end = Sys.Date()),
+                    start = Sys.Date() - 21,
+                    end = Sys.Date() - 7),
       selectInput("tabApi_weatherVars", "Weather Variables:",
                  choices = c(
                    "Min. Temperature" = "temperature_2m_min",
