@@ -1237,7 +1237,7 @@ server <- function(input, output, session) {
 output$apiTabParams <- renderUI({
   req(input$apiTabSource)
 
-  if (input$apiSource == "Traffic") {
+  if (input$apiTabSource == "Traffic") {
     tagList(
       textInput("trafficLocation", "Location:", placeholder = "e.g., Boston, MA"),
       dateRangeInput("trafficDates", "Date Range:",
@@ -1246,25 +1246,27 @@ output$apiTabParams <- renderUI({
     )
     } else if (input$apiTabSource == "Weather") {
     tagList(
-      textInput("weatherLocation", "Location (City or Coordinates):", placeholder = "e.g., Boston, MA or 42.36,-71.06"),
-      dateRangeInput("weatherDates", "Date Range:",
-                     start = Sys.Date() - 7,
-                     end = Sys.Date()),
-      selectInput("weatherVars", "Weather Variables:",
-                  choices = c(
-                    "Temperature" = "temperature_2m",
-                    "Precipitation" = "precipitation",
-                    "Wind Speed" = "wind_speed_10m",
-                    "Humidity" = "relative_humidity_2m",
-                    "Cloud Cover" = "cloudcover",
-                    "Pressure" = "pressure_msl"
-                  ),
-                  selected = "temperature_2m",
-                  multiple = TRUE
-      ),
-      selectInput("weatherUnit", "Units:",
-                  choices = c("Metric" = "metric", "Imperial" = "imperial"),
-                  selected = "metric")
+      textInput("tabApi_weatherLocation", "Location (Latitude,Longitude):", 
+               placeholder = "e.g., 42.36,-71.06"),
+      dateRangeInput("tabApi_weatherDates", "Date Range:",
+                    start = Sys.Date() - 7,
+                    end = Sys.Date()),
+      selectInput("tabApi_weatherVars", "Weather Variables:",
+                 choices = c(
+                   "Min. Temperature" = "temperature_2m_min",
+                   "Max. Temperature" = "temperature_2m_max",
+                   "Mean Temperature" = "temperature_2m_mean",
+                   "Precipitation" = "precipitation",
+                   "Wind Speed" = "wind_speed_10m",
+                   "Humidity" = "relative_humidity_2m",
+                   "Cloud Cover" = "cloud_cover",
+                   "Pressure" = "pressure_msl"
+                 ),
+                 selected = "temperature_2m",
+                 multiple = TRUE),
+      # selectInput("tabApi_weatherUnit", "Unit System:",
+      #            choices = c("Metric" = "metric", "Imperial" = "imperial"),
+      #            selected = "metric")
     )
   } else if (input$apiSource == "Visual Crossing") {
     tagList(
@@ -1473,27 +1475,53 @@ output$apiTabParams <- renderUI({
     })
   })
 
+  # Reactive value for API data
+  apiData <- reactiveVal(NULL)
+
   observeEvent(input$callTabApi, {
-  req(data())
-  # Example: Weather API from API tab
-  if (input$apiSource == "Weather") {
-    # Call openmeteo or your weather API here
-    # Use input$weatherLocation, input$weatherDates, input$weatherVars, input$weatherUnit
-    # Example pseudo-code:
-    weather_df <- openmeteo::get_weather(
-      location = input$weatherLocation,
-      start = input$weatherDates[1],
-      end = input$weatherDates[2],
-      variables = input$weatherVars,
-      units = input$weatherUnit
-    )
-    # Append or merge weather_df to your main data
-    merged <- cbind(data(), weather_df) # Or use merge() as appropriate
-    data(merged)
-    showNotification("Weather data appended to dataset.", type = "message")
-  }
-  # Add similar logic for Traffic or other APIs
-})
+    req(input$apiTabSource == "Weather")
+    
+    # Validate location format
+    location <- input$tabApi_weatherLocation
+    if (!grepl("^\\s*-?\\d+\\.?\\d*\\s*,\\s*-?\\d+\\.?\\d*\\s*$", location)) {
+      showNotification("Invalid location format. Use 'latitude,longitude' (e.g., 42.36,-71.06)", type = "error")
+      return()
+    }
+    
+    # Parse coordinates
+    coords <- as.numeric(strsplit(trimws(location), ",")[[1]])
+    lat <- coords[1]
+    lon <- coords[2]
+    
+    tryCatch({
+      # Fetch weather data from OpenMeteo
+      weather_df <- openmeteo::weather_history(
+        location = c(lat, lon),
+        start = input$tabApi_weatherDates[1],
+        end = input$tabApi_weatherDates[2],
+        daily = input$tabApi_weatherVars,
+        # unit = input$tabApi_weatherUnit
+      )
+      
+      # Store API data separately
+      apiData(weather_df)
+      showNotification("Successfully retrieved weather data!", type = "message")
+      
+    }, error = function(e) {
+      showNotification(paste("API Error:", e$message), type = "error")
+    })
+  })
+
+  output$apiDataTable <- renderDT({
+    req(apiData())
+    datatable(apiData(),
+              options = list(
+                scrollX = TRUE,
+                pageLength = 10,
+                autoWidth = TRUE,
+                columnDefs = list(list(className = 'dt-center', targets = "_all"))
+              ))
+  })
 
   # Data table output
   output$dataTable <- renderDT({
