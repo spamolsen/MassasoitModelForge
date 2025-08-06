@@ -875,24 +875,8 @@ ui <- fluidPage(
                       )
                     )
                   ),  # Added closing parenthesis for conditionalPanel
-                  actionButton("loadData", "Load Data", class = "btn-primary load-data-btn"),
                   checkboxInput("appendApiData", "Append API Data", value = FALSE),
-                  # The margin-top style is moved to CSS under .load-data-btn
-
-                  # Add JavaScript to switch tabs based on checkbox
-                  tags$script(HTML("
-                    $(document).on('shiny:inputchanged', function(event) {
-                      if (event.name === 'loadData' && event.value > 0) {
-                        setTimeout(function() {
-                          if ($('#appendApiData').is(':checked')) {
-                            $('a[data-value=\"API\"]').tab('show');
-                          } else {
-                            $('a[data-value=\"Analyze\"]').tab('show');
-                          }
-                        }, 300);
-                      }
-                    });
-                  "))
+                  actionButton("loadData", "Load Data", class = "btn-primary load-data-btn")
                 ),
 
                 tabPanel(
@@ -1227,6 +1211,15 @@ server <- function(input, output, session) {
     plot = NULL
   )
 
+  # Handle tab switching after loading data
+  observeEvent(input$loadData, {
+    if (input$appendApiData) {
+      updateTabsetPanel(session, "sidebarTabs", selected = "API")
+    } else {
+      updateTabsetPanel(session, "sidebarTabs", selected = "Analyze")
+    }
+  })
+
   # Store merged data from multiple files
   merged_data <- reactiveVal(NULL)
 
@@ -1510,6 +1503,18 @@ output$apiTabParams <- renderUI({
       
       # Store API data separately
       apiData(weather_df)
+      
+      # Merge with main data if append is enabled
+      if (isTRUE(input$appendApiData)) {
+        current_data <- data()
+        if (!is.null(current_data) && "ReadableDate" %in% names(current_data)) {
+          merged_data <- merge(current_data, weather_df, 
+                             by.x = "ReadableDate", by.y = "date", 
+                             all.x = TRUE)
+          data(merged_data)
+        }
+      }
+      
       showNotification("Successfully retrieved weather data!", type = "message")
       
     }, error = function(e) {
