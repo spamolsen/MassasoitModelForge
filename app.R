@@ -914,7 +914,7 @@ ui <- fluidPage(
                       selectInput(
                         "apiTabSource",
                         "Select Data Source:",
-                        choices = c("Traffic", "Weather")
+                        choices = c("Weather", "Traffic")
                       ),
                       uiOutput("apiTabParams"),
                       actionButton("callTabApi", "Call API", class = "btn-primary call-api-btn")
@@ -1038,6 +1038,11 @@ server <- function(input, output, session) {
       # Try to convert to numeric if possible
       num_x <- suppressWarnings(as.numeric(clean_x))
       if (!all(is.na(num_x)) && !all(is.na(x) | x == "")) {
+        # Check for potential Excel serial dates (numbers between 0 and 100000)
+        if (all(num_x >= 0 & num_x <= 100000, na.rm = TRUE)) {
+          # Convert from Excel serial date (1900 date system with 1899-12-30 origin)
+          return(as.Date(num_x, origin = "1899-12-30"))
+        }
         return(num_x)
       }
 
@@ -1046,11 +1051,15 @@ server <- function(input, output, session) {
         return(as.logical(x))
       }
 
-      # Check for dates (simple check)
-      if (any(grepl("\\d{1,4}[-/]\\d{1,2}[-/]\\d{1,4}", x, ignore.case = TRUE))) {
-        date_x <- as.Date(x, optional = TRUE)
-        if (!all(is.na(date_x))) {
-          return(date_x)
+      # Check for dates with more specific format validation
+      if (any(grepl("^\\d{1,2}[-/]\\d{1,2}[-/]\\d{2,4}$", x, ignore.case = TRUE))) {
+        # Try different date formats common in US and international formats
+        formats_to_try <- c("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d", "%m-%d-%Y", "%d-%m-%Y")
+        for (fmt in formats_to_try) {
+          date_x <- as.Date(x, format = fmt, optional = TRUE)
+          if (!all(is.na(date_x))) {
+            return(date_x)
+          }
         }
       }
 
@@ -1249,8 +1258,8 @@ output$apiTabParams <- renderUI({
       textInput("tabApi_weatherLocation", "Location (Latitude,Longitude):", 
                placeholder = "e.g., 42.36,-71.06"),
       dateRangeInput("tabApi_weatherDates", "Date Range:",
-                    start = Sys.Date() - 21,
-                    end = Sys.Date() - 7),
+                    start = if (exists("earliest_date", envir = .GlobalEnv)) get("earliest_date", envir = .GlobalEnv) else Sys.Date() - 21,
+                    end = if (exists("latest_date", envir = .GlobalEnv)) get("latest_date", envir = .GlobalEnv) else Sys.Date() - 7),
       selectInput("tabApi_weatherVars", "Weather Variables:",
                  choices = c(
                    "Min. Temperature" = "temperature_2m_min",
@@ -1267,15 +1276,6 @@ output$apiTabParams <- renderUI({
       # selectInput("tabApi_weatherUnit", "Unit System:",
       #            choices = c("Metric" = "metric", "Imperial" = "imperial"),
       #            selected = "metric")
-    )
-  } else if (input$apiSource == "Visual Crossing") {
-    tagList(
-      textInput("vcLocation", "Location:", placeholder = "e.g., Boston, MA"),
-      dateRangeInput("vcDates", "Date Range:",
-                     start = Sys.Date() - 30,
-                     end = Sys.Date()),
-      selectInput("vcUnitGroup", "Unit System:",
-                  choices = c("Metric" = "metric", "US" = "us"))
     )
   }
 })
@@ -1401,6 +1401,23 @@ output$apiTabParams <- renderUI({
         names(var_types) <- names(df)
         suitable_vars_types(var_types)
         suitable_vars(names(df)[sapply(var_types, function(x) x != "unsuitable")])
+        
+        # Check for ReadableDate column and set global variables
+        if ("ReadableDate" %in% names(df)) {
+          # Convert to Date
+          dates <- as.Date(df$ReadableDate)
+          # Assign to global variables
+          assign("earliest_date", min(dates, na.rm = TRUE), envir = .GlobalEnv)
+          assign("latest_date", max(dates, na.rm = TRUE), envir = .GlobalEnv)
+        } else {
+          # Remove global variables if they exist
+          if (exists("earliest_date", envir = .GlobalEnv)) {
+            rm("earliest_date", envir = .GlobalEnv)
+          }
+          if (exists("latest_date", envir = .GlobalEnv)) {
+            rm("latest_date", envir = .GlobalEnv)
+          }
+        }
       } else if (input$dataSource == "upload" && !is.null(input$file1)) {
         # Load uploaded files
         uploaded_files <- input$file1
@@ -1497,8 +1514,8 @@ output$apiTabParams <- renderUI({
       # Fetch weather data from OpenMeteo
       weather_df <- openmeteo::weather_history(
         location = c(lat, lon),
-        start = input$tabApi_weatherDates[1],
-        end = input$tabApi_weatherDates[2],
+      start =  input$tabApi_weatherDates[1],
+      end = input$tabApi_weatherDates[2],
         daily = input$tabApi_weatherVars,
         # unit = input$tabApi_weatherUnit
       )
