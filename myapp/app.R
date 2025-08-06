@@ -14,6 +14,7 @@ suppressPackageStartupMessages({
   library(readxl)
   library(ggplot2)
   library(BSDA)
+  library(openmeteo)
 })
 message("\n---\n***Starting Shiny app\n")
 # Set up Python environment
@@ -71,7 +72,7 @@ tryCatch({
   
   py_utils <- import_from_path("python_utils", path = ".")
   data_utils <- py_utils$data_utils
-  noaa_ncei <- import("noaa_ncei")
+  # noaa_ncei <- import("noaa_ncei")
 }, error = function(e) {
   stop("Error initializing Python: ", conditionMessage(e))
 })
@@ -565,7 +566,7 @@ ui <- fluidPage(
          <meta http-equiv="Expires" content="0" />
          <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>'),
     # Include the external CSS file with version parameter
-    tags$link(rel = "stylesheet", type = "text/css", 
+    tags$link(rel = "stylesheet", type = "text/css",
              href = paste0("app_design.css?", as.integer(Sys.time()))),
     # Add favicon
     tags$link(rel = "icon", type = "image/png", href = "favicon.ico")
@@ -576,9 +577,10 @@ ui <- fluidPage(
     id = "landingPage",
     class = "landing-page",
     div(
+      id = "landingContent",
       class = "landing-content",
       h1("Welcome to the Massasoit Model Forge", class = "landing-title"),
-      div(class = "button-container",
+      div(id = "landingButtonContainer", class = "button-container",
         actionButton("enterAppBtn", "Enter Application", class = "app-btn"),
         actionButton("aboutBtn", "About Us", class = "app-btn")
       )
@@ -588,42 +590,22 @@ ui <- fluidPage(
   # About Page
   div(
     id = "aboutPage",
-    class = "page",
-    style = "display: none;
-             position: fixed;
-             top: 0;
-             left: 0;
-             width: 100%;
-             height: 100%;
-             background: url('Ian_Background_Image.jpg') 
-                 no-repeat center center fixed;
-             background-size: cover;
-             overflow-y: auto;
-             padding: 0;
-             margin: 0;",
+    class = "about-page-hidden about-background",
     # Dark overlay
-    div(
-      style = "position: fixed;
-      top: 0; left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.5);
-      z-index: 1;"
-    ),
+    div(id = "aboutPageOverlay", class = "page-overlay"),
     # Content wrapper
-    div(style = "position: relative; z-index: 2; min-height: 100%; padding-top: 80px;",
+    div(id = "aboutPageContentWrapper", class = "page-content-wrapper",
       # Header with title and logo
-      div(class = "app-header",
-        style = "position: fixed; top: 0; left: 0; right: 0; z-index: 1000;"
-      ,
-        div(class = "header-left",
+      div(id = "aboutPageHeader", class = "app-header",
+      # The position: fixed style is now handled by the .app-header class in CSS
+        div(id = "aboutHeaderLeft", class = "header-left",
           actionLink(
             "appTitleLink_about",
             "Massasoit Model Forge",
             class = "app-title-link"
           )
         ),
-        div(class = "header-right",
+        div(id = "aboutHeaderRight", class = "header-right",
           a(
             href = "https://massasoitstem.com/",
             target = "_blank",
@@ -637,38 +619,30 @@ ui <- fluidPage(
       ),
       # Main content
       div(
+        id = "aboutContainer",
         class = "about-container",
-        style = "max-width: 800px;
-        margin: 30px auto;
-        padding: 40px;
-        background: rgba(255, 255, 255, 0.95);
-        border-radius: 10px;
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
-        position: relative;
-        z-index: 2;",
         # About Us Section
-        h2("Who We Are"),
+        h2("Who We Are", id = "whoWeAreHeading"),
         p("  \t     We're ",
-          tags$a(id = "sammyLink", onclick = "event.preventDefault();", "Sammy Olsen", style = "color: #3498db; text-decoration: underline; cursor: pointer;"),
+          tags$a(id = "sammyLink", onclick = "event.preventDefault();", "Sammy Olsen", class = "profile-link"),
           " and ",
-          tags$a(id = "ianLink", onclick = "event.preventDefault();", "Ian Handy", style = "color: #3498db; text-decoration: underline; cursor: pointer;"),
+          tags$a(id = "ianLink", onclick = "event.preventDefault();", "Ian Handy", class = "profile-link"),
           ", data scientists who got \
         our start at Massasoit Community College. This app began as a \
         tool for a very specific purpose: to help make sense of over a \
         decade's worth of wild bee research in preparation for the \
         national Ecological Society of America conference in 2025."),
-        
+
         # Popup Modals
         tags$div(id = "sammyModal", class = "modal",
           tags$div(class = "modal-content",
             tags$span(class = "close", "×"),
-            div(style = "display: flex; flex-direction: column; align-items: center; gap: 20px;",
-              img(src = "sammy_bio_image.jpg", 
-                  style = "width: 200px; height: 200px; border-radius: 50%; object-fit: cover; border: 4px solid #3498db;",
+            div(id = "sammyModalProfileLayout", class = "modal-profile-layout",
+              img(src = "sammy_bio_image.jpg",
+                  class = "profile-image",
                   alt = "Sammy Olsen"),
-              div(style = "text-align: center;",
+              div(id = "sammyProfileDetails", class = "profile-details",
                 h3("Sammy Olsen"),
-                p("Data Scientist and co-creator of Massasoit Model Forge."),
                 p(HTML("<a href='https://github.com/spamolsen' target='_blank'>GitHub: spamolsen</a>"))
               )
             )
@@ -678,13 +652,12 @@ ui <- fluidPage(
         tags$div(id = "ianModal", class = "modal",
           tags$div(class = "modal-content",
             tags$span(class = "close", "×"),
-            div(style = "display: flex; flex-direction: column; align-items: center; gap: 20px;",
-              img(src = "ian_bio_placeholder.png", 
-                  style = "width: 200px; height: 200px; border-radius: 50%; object-fit: cover; object-position: center 20%; border: 4px solid #3498db;",
+            div(id = "ianModalProfileLayout", class = "modal-profile-layout",
+              img(src = "ian_bio_placeholder.png",
+                  class = "profile-image ian-profile-image", # Added specific class for Ian's image
                   alt = "Ian Handy"),
-              div(style = "text-align: center;",
+              div(id = "ianProfileDetails", class = "profile-details",
                 h3("Ian Handy"),
-                p("Data Scientist and co-creator of Massasoit Model Forge."),
                 p(HTML("<a href='https://github.com/ian-handy' target='_blank'>GitHub: ian-handy</a>"))
               )
             )
@@ -696,18 +669,18 @@ ui <- fluidPage(
           "// Get the modals
           var sammyModal = document.getElementById('sammyModal');
           var ianModal = document.getElementById('ianModal');
-          
+
           // Get the links that open the modals
           var sammyLink = document.getElementById('sammyLink');
           var ianLink = document.getElementById('ianLink');
-          
+
           // Get the <span> elements that close the modals
           var spans = document.getElementsByClassName('close');
-          
+
           // When the user clicks on a link, open the corresponding modal
           sammyLink.onclick = function() { sammyModal.style.display = 'block'; }
           ianLink.onclick = function() { ianModal.style.display = 'block'; }
-          
+
           // When the user clicks on <span> (x), close the modal
           for (var i = 0; i < spans.length; i++) {
             spans[i].onclick = function() {
@@ -715,7 +688,7 @@ ui <- fluidPage(
               ianModal.style.display = 'none';
             }
           }
-          
+
           // When the user clicks anywhere outside of the modal, close it
           window.onclick = function(event) {
             if (event.target == sammyModal || event.target == ianModal) {
@@ -743,16 +716,16 @@ ui <- fluidPage(
         for students, but designed to be powerful enough for anyone."),
 
         # Why We Built This Section
-        h3("Why We Built This"),
+        h3("Why We Built This", id = "whyWeBuiltThisHeading"),
         p("As community college students, we found that the tools for advanced \
         statistical analysis were either too expensive, opaque, or complex for \
         many in education and research. We \
         built this app to show that real science \
         can happen anywhere, when you give people the tools to do it."),
 
-        h3(" "),
+        h3(" ", id = "missionStatementHeading"), # Empty heading for spacing, can be styled with CSS
         p("Our mission is twofold:"),
-        tags$ul(
+        tags$ul(id = "missionList",
           tags$li("To create transparent, open-source tools that bring \
           the power of modern statistical modeling to everyone, across \
           disciplines."),
@@ -768,14 +741,14 @@ ui <- fluidPage(
         and excited about where this project can go."),
 
         # What It Does Section
-        h3("What It Does"),
+        h3("What It Does", id = "whatItDoesHeading"),
         p("Massasoit Model Forge is an open-source statistical modeling \
           application built with R Shiny and hosted through Posit Connect. \
           It integrates both R and Python \
           (via the ",
           span(
             "reticulate",
-            style = "font-family: 'Courier New', monospace;"
+            class = "code-package-name" # New class for code/package names
           ),
           " package) to \
           give users access to a broad set of tools for analyzing datasets— \
@@ -786,7 +759,7 @@ ui <- fluidPage(
           that could accommodate non-parametric, real-world ecological data. \
           It has since evolved into a general purpose modeling environment \
           that allows users to:"),
-        tags$ul(
+        tags$ul(id = "capabilitiesList",
           tags$li("Upload and examine structured data files. (CSV, Excel)"),
           tags$li("Run both parametric (e.g., GLMs, linear regression, ANOVA) \
           and non-parametric (e.g., \
@@ -795,7 +768,7 @@ ui <- fluidPage(
           visualizations without writing code.")
         ),
         h4("All through a guided interface with built in interpretability \
-        and error-checking!"),
+        and error-checking!", id = "guidedInterfaceHeading"),
         p("We’ll continue to expand the app’s capabilities, documentation, \
         and educational use cases. If you're working with data in an \
         under-resourced setting, this tool was built with you in mind. \
@@ -803,51 +776,34 @@ ui <- fluidPage(
         building. And we’re glad you’re here."),
 
         # Contact Information
-        h3("Contact Information"),
+        h3("Contact Information", id = "contactInfoHeading"),
         p("Click on our names above to learn more about us or reach out through GitHub."),
-        tags$ul(
+        tags$ul(id = "contactList",
           tags$li(tags$a(href = "https://github.com/spamolsen", target = "_blank", "GitHub: spamolsen")),
           tags$li(tags$a(href = "https://github.com/ian-handy", target = "_blank", "GitHub: ian-handy"))
         )
       )
     )
   ),
- 
+
   # Main Application Content
   div(
     id = "mainApp",
-    class = "page",
-    style = "display: none;
-             position: fixed;
-             top: 0;
-             left: 0;
-             width: 100%;
-             height: 100%;
-             background: url('Ian_Background_Image.jpg') 
-                 no-repeat center center fixed;
-             background-size: cover;
-             overflow-y: auto;",
+    class = "main-app-hidden main-background",
     # Dark overlay
-    div(
-      style = "position: fixed;
-      top: 0; left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.5);
-      z-index: 1;"
-    ),
+    div(id = "mainAppOverlay", class = "page-overlay"),
     # Content wrapper
-    div(style = "position: relative; z-index: 2; min-height: 100%;",
+    div(id = "mainAppContentWrapper", class = "page-content-wrapper",
       # Header with title and logo
-      div(class = "app-header",
-        div(class = "header-left",
+      div(id = "mainAppHeader", class = "app-header",
+        div(id = "mainHeaderLeft", class = "header-left",
           actionLink(
             "appTitleLink",
             "Massasoit Model Forge",
             class = "app-title-link"
           )
         ),
-        div(class = "header-right",
+        div(id = "mainHeaderRight", class = "header-right",
           a(href = "https://massasoitstem.com/", target = "_blank",
             img(
               src = "STEMlogowithBackground.png",
@@ -858,22 +814,20 @@ ui <- fluidPage(
         )
       ),
 
-      
-      # Main content row with sidebar and results
       # Transparent spacer div for layout
-      div(style = "height: 40px; margin: 20px 0;"),
-      
-      div(class = "container-fluid",
-        div(class = "row",
+      div(id = "mainContentSpacer", class = "content-spacer"),
+
+      div(id = "mainAppContainerFluid", class = "container-fluid",
+        div(id = "mainAppRow", class = "row",
           # Sidebar with data/analysis controls (left side)
-          div(class = "col-md-4",
-            div(class = "sidebar-panel", style = "background-color: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
+          div(id = "sidebarCol", class = "col-md-4",
+            div(id = "sidebarPanel", class = "sidebar-panel",
               tabsetPanel(
                 id = "sidebarTabs",
                 tabPanel(
                   "Data",
-                  # Data source selection
-                  div(class = "form-group",
+                  id = "dataTabPanel", # Unique ID for tabPanel
+                  div(id = "dataSourceGroup", class = "form-group",
                     radioButtons(
                       "dataSource",
                       "Choose data source:",
@@ -881,25 +835,20 @@ ui <- fluidPage(
                         "Use base file" = "base",
                         "Upload your own file" = "upload"
                       ),
-                      selected = "base",
-                      inline = TRUE
+                      selected = "base"
                     )
-                  ),
-
-                  # Online databases checkbox
-                  div(class = "form-group",
-                    checkboxInput("useOnlineDatabases", "Use Online Databases", value = FALSE)
                   ),
 
                   # Conditional panel for base file selection
                   conditionalPanel(
                     condition = "input.dataSource == 'base'",
-                    div(class = "form-group",
+                    id = "baseFileConditionalPanel",
+                    div(id = "baseFileGroup", class = "form-group",
                       selectInput(
                         "baseFile",
                         "Select base file:",
                         choices = list.files(
-                          "Base_Data_Files",
+                          "data",
                           pattern = "\\.(xlsx|csv)$",
                           full.names = FALSE
                         ),
@@ -911,7 +860,8 @@ ui <- fluidPage(
                   # Conditional panel for file upload
                   conditionalPanel(
                     condition = "input.dataSource == 'upload'",
-                    div(class = "form-group",
+                    id = "fileUploadConditionalPanel",
+                    div(id = "fileUploadGroup", class = "form-group",
                       fileInput(
                         "file1",
                         label = span("Choose File(s)", class = "file-input-label"),
@@ -924,66 +874,29 @@ ui <- fluidPage(
                         class = "file-input-info"
                       )
                     )
-                  ),
+                  ),  # Added closing parenthesis for conditionalPanel
+                  checkboxInput("appendApiData", "Append API Data", value = FALSE),
+                  actionButton("loadData", "Load Data", class = "btn-primary load-data-btn")
+                ),
 
-                  # Conditional panel for online databases
-                  conditionalPanel(
-                    condition = "input.useOnlineDatabases == true",
-                    div(class = "form-group",
-                      h5("Online Data Sources"),
+                tabPanel(
+                  "API",
+                  id = "apiTabPanel",
+                    div(id = "apiControlsGroup", class = "form-group",
                       selectInput(
-                        "onlineDataSource", 
+                        "apiTabSource",
                         "Select Data Source:",
-                        choices = c("NOAA NCEI" = "noaa")
+                        choices = c("Weather", "Traffic")
                       ),
-                      
-                      # NOAA API Token Input
-                      conditionalPanel(
-                        condition = "input.onlineDataSource == 'noaa'",
-                        div(
-                          textInput(
-                            "ncei_token", 
-                            label = "NOAA API Token:",
-                            value = "",
-                            placeholder = "Enter your NOAA NCEI API token"
-                          ),
-                          helpText(
-                            "Get a free API token from ",
-                            a("https://www.ncdc.noaa.gov/cdo-web/token", 
-                              href = "https://www.ncdc.noaa.gov/cdo-web/token",
-                              target = "_blank")
-                          ),
-                          
-                          # Coordinates and Station Search
-                          numericInput("latitude", "Latitude", value = 42.18),
-                          numericInput("longitude", "Longitude", value = -71.17),
-                          actionButton("find_stations", "Find Nearby Stations"),
-                          selectInput("selected_station", "Select Station", choices = NULL),
-                          actionButton("fetch_weather", "Fetch Weather Data"),
-                          checkboxInput("append_to_data", "Append to existing data", value = TRUE)
-                        )
-                      )
+                      uiOutput("apiTabParams"),
+                      actionButton("callTabApi", "Call API", class = "btn-primary call-api-btn")
                     )
                   ),
-                  
-                  actionButton("loadData", "Load Data", class = "btn-primary"),
-                  
-                  # Add JavaScript to switch to Analyze tab when Load Data is clicked
-                  tags$script(HTML("
-                    $(document).on('shiny:inputchanged', function(event) {
-                      if (event.name === 'loadData' && event.value > 0) {
-                        setTimeout(function() {
-                          $('a[data-value=\"Analyze\"]').tab('show');
-                        }, 300);
-                      }
-                    });
-                  ")),
-                  style = "margin-top: 10px;"
-                ),
-                
+
                 tabPanel(
                   "Analyze",
-                  div(class = "form-group",
+                  id = "analyzeTabPanel", # Unique ID for tabPanel
+                  div(id = "analysisTypeGroup", class = "form-group",
                     selectInput(
                       "analysisType",
                       "Select Analysis Type:",
@@ -1019,45 +932,60 @@ ui <- fluidPage(
                   uiOutput("analysisParams"),
 
                   # Action button to run the selected analysis
-                  actionButton("runAnalysis", "Run Analysis", class = "btn-primary")
+                  actionButton("runAnalysis", "Run Analysis", class = "btn-primary run-analysis-btn") # Added specific class
                 )
               )
             )
           ),
 
           # Main content area with results tabs (right side)
-          div(class = "col-md-8",
-            div(class = "main-panel", style = "background-color: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
+          div(id = "mainContentCol", class = "col-md-8",
+            div(id = "mainPanel", class = "main-panel",
               tabsetPanel(
                 id = "mainTabs",
                 tabPanel(
                   "View File",
-                  div(class = "table-responsive",
+                  id = "viewFileTabPanel", # Unique ID for tabPanel
+                  div(id = "dataTableContainer", class = "table-responsive",
                     DTOutput("dataTable")
                   )
                 ),
 
                 tabPanel("Data Summary",
-                  div(class = "summary-output",
+                  id = "dataSummaryTabPanel", # Unique ID for tabPanel
+                  div(id = "summaryOutput", class = "summary-output",
                     verbatimTextOutput("summary")
                   )
                 ),
 
+                tabPanel("API Data",
+                  id = "apiDataTabPanel",
+                  div(id = "apiDataContainer", class = "api-data-container",
+                    h3("API Data Integration"),
+                    DTOutput("apiDataTable"),
+                    verbatimTextOutput("apiCallSummary")
+                  )
+                ),
+
                 tabPanel("Analysis Results",
+                  id = "analysisResultsTabPanel", # Unique ID for tabPanel
                   conditionalPanel(
                     condition = "output.analysisPlot_available == true",
-                    div(class = "plot-container",
+                    id = "analysisPlotConditional",
+                    div(id = "analysisPlotContainer", class = "plot-container",
                       plotOutput("analysisPlot", height = "500px")
                     )
                   ),
 
                   conditionalPanel(
                     condition = "output.analysisPlot_available == false",
-                    div(class = "alert alert-info",
+                    id = "noPlotAvailableConditional",
+                    div(id = "noPlotAlert", class = "alert alert-info",
                       "No plot available for this analysis type or an error occurred."
                     )
                   ),
-                  div(class = "results-output",
+
+                  div(id = "analysisResultsOutput", class = "results-output",
                     verbatimTextOutput("analysisResults")
                   )
                 )
@@ -1072,173 +1000,6 @@ ui <- fluidPage(
 
 # Server logic
 server <- function(input, output, session) {
-  # Initialize NOAA client
-  ncei_client <- reactive({
-    req(input$ncei_token)
-
-    # Add some debug output
-    print("Initializing NOAA client...")
-    print(paste("Using token:", substr(input$ncei_token, 1, 5), "..."))
-
-    tryCatch({
-      # Initialize the Python client with the token
-      ncei <- import("noaa_ncei")
-      print("Python module imported successfully")
-      
-      client <- ncei$NOAANCEIClient(token = input$ncei_token)
-      print("NOAA client created successfully")
-      
-      return(client)
-    }, error = function(e) {
-      error_msg <- paste("Error initializing NOAA client:", e$message)
-      print(error_msg)
-      print(paste("Error details:", e$message))
-      if (!is.null(e$parent)) {
-        print(paste("Parent error:", e$parent$message))
-      }
-      showNotification(error_msg, type = "error")
-      return(NULL)
-    })
-  })
-
-  # Find nearby stations
-  observeEvent(input$find_stations, {
-    print("Find stations button clicked")
-    print(paste("Using coordinates:", input$latitude, input$longitude))
-    
-    if (is.null(ncei_client())) {
-      error_msg <- "NOAA client is not initialized. Please check your API token."
-      print(error_msg)
-      showNotification(error_msg, type = "error")
-      return(NULL)
-    }
-
-    showNotification("Searching for nearby stations...", type = "message")
-    
-    tryCatch({
-      print("Calling get_location_by_coordinates...")
-      station_id <- ncei_client()$get_location_by_coordinates(
-        as.numeric(input$latitude), 
-        as.numeric(input$longitude)
-      )
-      
-      print(paste("Received station_id:", station_id))
-      
-      if (is.null(station_id) || is.na(station_id) || station_id == "") {
-        warning_msg <- "No stations found near the specified coordinates. Please try different coordinates."
-        print(warning_msg)
-        showNotification(warning_msg, type = "warning")
-        return()
-      }
-      
-      print("Fetching station details...")
-      stations <- ncei_client()$get_stations(location = station_id)
-      print("Station details received:")
-      print(str(stations))
-      
-      if (is.null(stations) || is.null(stations$results) || length(stations$results) == 0) {
-        showNotification("No station data available for the selected location.", type = "warning")
-        return()
-      }
-      
-      # Create stations data frame
-      stations_df <- data.frame(
-        id = sapply(stations$results, function(x) x$id),
-        name = sapply(stations$results, function(x) x$name),
-        latitude = sapply(stations$results, function(x) x$latitude),
-        longitude = sapply(stations$results, function(x) x$longitude),
-        elevation = sapply(stations$results, function(x) x$elevation)
-      )
-      
-      output$stations_table <- renderDT({
-        datatable(stations_df)
-      })
-      
-      updateSelectInput(session, "selected_station", 
-                       choices = stations_df$id,
-                       selected = stations_df$id[1])
-      
-      showNotification("Station data loaded successfully.", type = "message")
-      
-    }, error = function(e) {
-      error_msg <- paste("Error fetching stations:")
-      if (!is.null(e$message)) {
-        error_msg <- paste(error_msg, e$message)
-      }
-      if (!is.null(e$parent)) {
-        error_msg <- paste(error_msg, "\nParent error:", e$parent$message)
-      }
-      showNotification(error_msg, type = "error")
-      
-      # Print detailed error to console
-      print("Detailed error:")
-      print(e)
-      
-      # Try to get Python error if any
-      if (requireNamespace("reticulate", quietly = TRUE)) {
-        py_error <- tryCatch({
-          reticulate::py_last_error()
-        }, error = function(e) NULL)
-        
-        if (!is.null(py_error)) {
-          print("Python error details:")
-          print(py_error)
-        }
-      }
-    })
-  })
-
-  # Fetch weather data
-  observeEvent(input$fetch_weather, {
-    if (is.null(ncei_client()) || is.null(input$selected_station)) return(NULL)
-    
-    # Get date range from existing data if available
-    date_range <- reactive({
-      if (exists("data") && !is.null(data())) {
-        dates <- as.Date(data()$date)
-        list(
-          start = min(dates),
-          end = max(dates)
-        )
-      } else {
-        list(
-          start = Sys.Date() - 365,
-          end = Sys.Date()
-        )
-      }
-    })
-    
-    tryCatch({
-      weather_data <- ncei_client()$get_weather_data(
-        input$selected_station,
-        format(date_range()$start, "%Y-%m-%d"),
-        format(date_range()$end, "%Y-%m-%d")
-      )
-      
-      if (!is.null(weather_data)) {
-        processed_data <- ncei_client()$process_weather_data(weather_data)
-        
-        output$weather_data_table <- renderDT({
-          datatable(processed_data)
-        })
-        
-        if (input$append_to_data && exists("data") && !is.null(data())) {
-          # Merge with existing data
-          merged_data <- merge(
-            data(),
-            processed_data,
-            by = "date",
-            all = TRUE
-          )
-          
-          # Update the reactive value
-          data <<- merged_data
-        }
-      }
-    }, error = function(e) {
-      showNotification("Error fetching weather data: " %>% e$message, type = "error")
-    })
-  })
   # Function to safely convert columns to appropriate types
   clean_and_convert <- function(df) {
     # Function to guess and convert column types
@@ -1249,6 +1010,11 @@ server <- function(input, output, session) {
       # Try to convert to numeric if possible
       num_x <- suppressWarnings(as.numeric(clean_x))
       if (!all(is.na(num_x)) && !all(is.na(x) | x == "")) {
+        # Check for potential Excel serial dates (numbers between 0 and 100000)
+        if (all(num_x >= 0 & num_x <= 100000, na.rm = TRUE)) {
+          # Convert from Excel serial date (1900 date system with 1899-12-30 origin)
+          return(as.Date(num_x, origin = "1899-12-30"))
+        }
         return(num_x)
       }
 
@@ -1257,11 +1023,15 @@ server <- function(input, output, session) {
         return(as.logical(x))
       }
 
-      # Check for dates (simple check)
-      if (any(grepl("\\d{1,4}[-/]\\d{1,2}[-/]\\d{1,4}", x, ignore.case = TRUE))) {
-        date_x <- as.Date(x, optional = TRUE)
-        if (!all(is.na(date_x))) {
-          return(date_x)
+      # Check for dates with more specific format validation
+      if (any(grepl("^\\d{1,2}[-/]\\d{1,2}[-/]\\d{2,4}$", x, ignore.case = TRUE))) {
+        # Try different date formats common in US and international formats
+        formats_to_try <- c("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d", "%m-%d-%Y", "%d-%m-%Y")
+        for (fmt in formats_to_try) {
+          date_x <- as.Date(x, format = fmt, optional = TRUE)
+          if (!all(is.na(date_x))) {
+            return(date_x)
+          }
         }
       }
 
@@ -1441,31 +1211,55 @@ server <- function(input, output, session) {
     plot = NULL
   )
 
+  # Handle tab switching after loading data
+  observeEvent(input$loadData, {
+    if (input$appendApiData) {
+      updateTabsetPanel(session, "sidebarTabs", selected = "API")
+    } else {
+      updateTabsetPanel(session, "sidebarTabs", selected = "Analyze")
+    }
+  })
+
   # Store merged data from multiple files
   merged_data <- reactiveVal(NULL)
 
   # API parameters UI
-  output$apiParams <- renderUI({
-    req(input$apiSource)
+output$apiTabParams <- renderUI({
+  req(input$apiTabSource)
 
-    if (input$apiSource == "Traffic") {
-      tagList(
-        textInput("trafficLocation", "Location:", placeholder = "e.g., Boston, MA"),
-        dateRangeInput("trafficDates", "Date Range:",
-                       start = Sys.Date() - 30,
-                       end = Sys.Date())
-      )
-    } else if (input$apiSource == "Visual Crossing") {
-      tagList(
-        textInput("vcLocation", "Location:", placeholder = "e.g., Boston, MA"),
-        dateRangeInput("vcDates", "Date Range:",
-                       start = Sys.Date() - 30,
-                       end = Sys.Date()),
-        selectInput("vcUnitGroup", "Unit System:",
-                    choices = c("Metric" = "metric", "US" = "us"))
-      )
-    }
-  })
+  if (input$apiTabSource == "Traffic") {
+    tagList(
+      textInput("trafficLocation", "Location:", placeholder = "e.g., Boston, MA"),
+      dateRangeInput("trafficDates", "Date Range:",
+                     start = Sys.Date() - 30,
+                     end = Sys.Date())
+    )
+    } else if (input$apiTabSource == "Weather") {
+    tagList(
+      textInput("tabApi_weatherLocation", "Location (Latitude,Longitude):", 
+               placeholder = "e.g., 42.36,-71.06"),
+      dateRangeInput("tabApi_weatherDates", "Date Range:",
+                    start = if (exists("earliest_date")) get("earliest_date") else Sys.Date() - 21,
+                    end = if (exists("latest_date")) get("latest_date") else Sys.Date() - 7),
+      selectInput("tabApi_weatherVars", "Weather Variables:",
+                 choices = c(
+                   "Min. Temperature" = "temperature_2m_min",
+                   "Max. Temperature" = "temperature_2m_max",
+                   "Mean Temperature" = "temperature_2m_mean",
+                   "Precipitation" = "precipitation",
+                   "Wind Speed" = "wind_speed_10m",
+                   "Humidity" = "relative_humidity_2m",
+                   "Cloud Cover" = "cloud_cover",
+                   "Pressure" = "pressure_msl"
+                 ),
+                 selected = "temperature_2m",
+                 multiple = TRUE),
+      # selectInput("tabApi_weatherUnit", "Unit System:",
+      #            choices = c("Metric" = "metric", "Imperial" = "imperial"),
+      #            selected = "metric")
+    )
+  }
+})
 
   # Reactive value to store the loaded data
   data <- reactiveVal(NULL)
@@ -1557,7 +1351,7 @@ server <- function(input, output, session) {
     tryCatch({
       if (input$dataSource == "base" && !is.null(input$baseFile)) {
         # Load single base file
-        file_path <- file.path("Base_Data_Files", input$baseFile)
+        file_path <- file.path("data", input$baseFile)
         
         # Read the file with appropriate function
         if (grepl("\\.xlsx?$", input$baseFile, ignore.case = TRUE)) {
@@ -1588,6 +1382,23 @@ server <- function(input, output, session) {
         names(var_types) <- names(df)
         suitable_vars_types(var_types)
         suitable_vars(names(df)[sapply(var_types, function(x) x != "unsuitable")])
+        
+        # Check for ReadableDate column and set global variables
+        if ("ReadableDate" %in% names(df)) {
+          # Convert to Date
+          dates <- as.Date(df$ReadableDate)
+          # Assign to global variables
+          assign("earliest_date", min(dates, na.rm = TRUE), envir = .GlobalEnv)
+          assign("latest_date", max(dates, na.rm = TRUE), envir = .GlobalEnv)
+        } else {
+          # Remove global variables if they exist
+          if (exists("earliest_date", envir = .GlobalEnv)) {
+            rm("earliest_date", envir = .GlobalEnv)
+          }
+          if (exists("latest_date", envir = .GlobalEnv)) {
+            rm("latest_date", envir = .GlobalEnv)
+          }
+        }
       } else if (input$dataSource == "upload" && !is.null(input$file1)) {
         # Load uploaded files
         uploaded_files <- input$file1
@@ -1662,6 +1473,66 @@ server <- function(input, output, session) {
     })
   })
 
+  # Reactive value for API data
+  apiData <- reactiveVal(NULL)
+
+  observeEvent(input$callTabApi, {
+    req(input$apiTabSource == "Weather")
+    
+    # Validate location format
+    location <- input$tabApi_weatherLocation
+    if (!grepl("^\\s*-?\\d+\\.?\\d*\\s*,\\s*-?\\d+\\.?\\d*\\s*$", location)) {
+      showNotification("Invalid location format. Use 'latitude,longitude' (e.g., 42.36,-71.06)", type = "error")
+      return()
+    }
+    
+    # Parse coordinates
+    coords <- as.numeric(strsplit(trimws(location), ",")[[1]])
+    lat <- coords[1]
+    lon <- coords[2]
+    
+    tryCatch({
+      # Fetch weather data from OpenMeteo
+      weather_df <- openmeteo::weather_history(
+        location = c(lat, lon),
+      start =  input$tabApi_weatherDates[1],
+      end = input$tabApi_weatherDates[2],
+        daily = input$tabApi_weatherVars,
+        # unit = input$tabApi_weatherUnit
+      )
+      
+      # Store API data separately
+      apiData(weather_df)
+      
+      # Merge with main data if append is enabled
+      if (isTRUE(input$appendApiData)) {
+        current_data <- data()
+        if (!is.null(current_data) && "ReadableDate" %in% names(current_data)) {
+          merged_data <- merge(current_data, weather_df, 
+                             by.x = "ReadableDate", by.y = "date", 
+                             all.x = TRUE)
+          data(merged_data)
+        }
+      }
+      
+      showNotification("Successfully retrieved weather data!", type = "message")
+      
+    }, error = function(e) {
+      showNotification(paste("API Error:", e$message), type = "error")
+    })
+  })
+
+  output$apiDataTable <- renderDT({
+    req(apiData())
+    datatable(apiData(),
+              options = list(
+                scrollX = TRUE,
+                pageLength = 10,
+                autoWidth = TRUE,
+                columnDefs = list(list(className = 'dt-center', targets = "_all"))
+              ))
+  })
+
   # Data table output
   output$dataTable <- renderDT({
     df <- data()
@@ -1675,32 +1546,112 @@ server <- function(input, output, session) {
   output$summary <- renderPrint({
     req(data())
     df <- data()
-    cat("Data Summary\n")
-    cat("===========\n\n")
-      cat("Number of rows:", nrow(df), "\n")
-      cat("Number of columns:", ncol(df), "\n\n")
-      cat("Column names:\n")
-      cat(paste(" -", names(df)), sep = "\n")
-      cat("\n\n")
-      cat("Data types:\n")
-      for (col in names(df)) {
-        cat(" -", col, ":", class(df[[col]])[1], "\n")
-      }
-      cat("\n")
-      missing_vals <- sapply(df, function(x) sum(is.na(x)))
-      if (any(missing_vals > 0)) {
-        cat("Missing values:\n")
-        for (col in names(missing_vals)) {
-          if (missing_vals[[col]] > 0) {
-        cat(" -", col, ":", missing_vals[[col]], "\n")
-          }
+    cat("\n=== DATA PROFILE ===\n\n")
+    cat(sprintf("%-40s: %d observations", "Total records", nrow(df)))
+    cat(sprintf("\n%-40s: %d variables", "Number of features", ncol(df)))
+    
+    # Calculate complete cases
+    complete_cases <- sum(complete.cases(df))
+    cat(sprintf("\n%-40s: %d (%.1f%%)", "Complete cases", complete_cases, 
+                complete_cases/nrow(df)*100))
+    
+    # Enhanced type information
+    cat("\n\n--- Variable Types ---")
+    type_counts <- table(sapply(df, function(x) class(x)[1]))
+    for (type in names(type_counts)) {
+        cat(sprintf("\n%-12s: %d variables", type, type_counts[type]))
+    }
+    
+    # Missing values analysis
+    cat("\n\n--- Missing Values ---")
+    missing_vals <- sapply(df, function(x) sum(is.na(x)))
+    if (any(missing_vals > 0)) {
+        cat(sprintf("\n%-40s: %.1f%%", "Total missing values", 
+                    sum(missing_vals)/prod(dim(df))*100))
+        cat(sprintf("\n%-40s: %d", "Variables with missing values", 
+                    sum(missing_vals > 0)))
+        cat("\nTop variables with missingness:")
+        missing_sorted <- sort(missing_vals[missing_vals > 0], decreasing = TRUE)[1:3]
+        for (var in names(missing_sorted)) {
+            cat(sprintf("\n- %-30s: %d (%.1f%%)", var, missing_sorted[var],
+                        missing_sorted[var]/nrow(df)*100))
         }
-      } else {
-        cat("No missing values found.\n")
-      }
-      cat("\n")
-      cat("First few rows of data:\n")
-      print(utils::head(df, 5))
+    } else {
+        cat("\nNo missing values detected")
+    }
+    
+    # Numeric variable summaries
+    num_vars <- names(df)[sapply(df, is.numeric)]
+    if (length(num_vars) > 0) {
+        cat("\n\n--- Numeric Variables ---")
+        for (var in num_vars) {
+            vals <- df[[var]]
+            cat(sprintf("\n\n%s:", var))
+            cat(sprintf("\n  %-20s: %d (%.1f%%)", "Missing", sum(is.na(vals)), 
+                        mean(is.na(vals))*100))
+            cat(sprintf("\n  %-20s: %.2f [%.2f, %.2f]", "Distribution",
+                        median(vals, na.rm = TRUE), 
+                        quantile(vals, 0.25, na.rm = TRUE),
+                        quantile(vals, 0.75, na.rm = TRUE)))
+            cat(sprintf("\n  %-20s: %.2f ± %.2f (SD)", "Mean ± SD",
+                        mean(vals, na.rm = TRUE), sd(vals, na.rm = TRUE)))
+        }
+    }
+    
+    # Categorical variable summaries
+    cat_vars <- names(df)[sapply(df, function(x) is.character(x) || is.factor(x))]
+    if (length(cat_vars) > 0) {
+        cat("\n\n--- Categorical Variables ---")
+        for (var in cat_vars) {
+            vals <- df[[var]]
+            cat(sprintf("\n\n%s:", var))
+            cat(sprintf("\n  %-20s: %d (%.1f%%)", "Missing", sum(is.na(vals)), 
+                        mean(is.na(vals))*100))
+            freq <- table(vals, useNA = "always")
+            top_cats <- names(sort(freq, decreasing = TRUE)[1:3])
+            for (cat in top_cats) {
+                if (is.na(cat)) next
+                cat(sprintf("\n  %-20s: %d (%.1f%%)", cat, freq[cat], 
+                            freq[cat]/length(vals)*100))
+            }
+            if (length(unique(vals)) > 3) {
+                cat(sprintf("\n  %-20s: %d total categories", 
+                            "Unique values", length(unique(vals))))
+            }
+        }
+    }
+    
+    # Date variable summaries
+    date_vars <- names(df)[sapply(df, function(x) inherits(x, "Date"))]
+    if (length(date_vars) > 0) {
+        cat("\n\n--- Date Variables ---")
+        for (var in date_vars) {
+            vals <- df[[var]]
+            cat(sprintf("\n\n%s:", var))
+            cat(sprintf("\n  %-20s: %s", "Date range",
+                        paste(range(vals, na.rm = TRUE), collapse = " to ")))
+            cat(sprintf("\n  %-20s: %d (%.1f%%)", "Missing", sum(is.na(vals)), 
+                        mean(is.na(vals))*100))
+        }
+    }
+    
+    # Logical variable summaries
+    logi_vars <- names(df)[sapply(df, is.logical)]
+    if (length(logi_vars) > 0) {
+        cat("\n\n--- Logical Variables ---")
+        for (var in logi_vars) {
+            vals <- df[[var]]
+            cat(sprintf("\n\n%s:", var))
+            cat(sprintf("\n  %-20s: %d (%.1f%%)", "TRUE", sum(vals, na.rm = TRUE), 
+                        mean(vals, na.rm = TRUE)*100))
+            cat(sprintf("\n  %-20s: %d (%.1f%%)", "FALSE", sum(!vals, na.rm = TRUE), 
+                        mean(!vals, na.rm = TRUE)*100))
+            cat(sprintf("\n  %-20s: %d (%.1f%%)", "Missing", sum(is.na(vals)), 
+                        mean(is.na(vals))*100))
+        }
+    }
+    
+    cat("\n\n=== END OF PROFILE ===\n")
 })
 
   output$analysisParams <- renderUI({
