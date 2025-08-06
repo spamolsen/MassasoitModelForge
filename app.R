@@ -833,8 +833,7 @@ ui <- fluidPage(
                       "Choose data source:",
                       choices = c(
                         "Use base file" = "base",
-                        "Upload your own file" = "upload",
-                        "Online Databases" = "api"
+                        "Upload your own file" = "upload"
                       ),
                       selected = "base"
                     )
@@ -875,41 +874,30 @@ ui <- fluidPage(
                         class = "file-input-info"
                       )
                     )
-                  ),
-
-                  # Conditional panel for online databases
-                  conditionalPanel(
-                    condition = "input.dataSource == 'api'",
-                    id = "apiSourceConditionalPanel",
-                    div(id = "apiSourceGroup", class = "form-group",
-                      selectInput(
-                        "apiSource",
-                        "Select Data Source:",
-                        choices = c("Traffic", "Weather")
-                      ),
-                      # Placeholder for API-specific parameters
-                      uiOutput("apiParams")
-                    )
-                  ),
-
-                  actionButton("loadData", "Load Data", class = "btn-primary load-data-btn"), # Added specific class
+                  ),  # Added closing parenthesis for conditionalPanel
+                  actionButton("loadData", "Load Data", class = "btn-primary load-data-btn"),
+                  checkboxInput("appendApiData", "Append API Data", value = FALSE),
                   # The margin-top style is moved to CSS under .load-data-btn
 
-                  # Add JavaScript to switch to Analyze tab when Load Data is clicked
+                  # Add JavaScript to switch tabs based on checkbox
                   tags$script(HTML("
                     $(document).on('shiny:inputchanged', function(event) {
                       if (event.name === 'loadData' && event.value > 0) {
                         setTimeout(function() {
-                          $('a[data-value=\"Analyze\"]').tab('show');
+                          if ($('#appendApiData').is(':checked')) {
+                            $('a[data-value=\"API\"]').tab('show');
+                          } else {
+                            $('a[data-value=\"Analyze\"]').tab('show');
+                          }
                         }, 300);
                       }
                     });
                   "))
                 ),
 
-                  tabPanel(
-                    "API",
-                    id = "apiTabPanel",
+                tabPanel(
+                  "API",
+                  id = "apiTabPanel",
                     div(id = "apiControlsGroup", class = "form-group",
                       selectInput(
                         "apiTabSource",
@@ -1553,32 +1541,112 @@ output$apiTabParams <- renderUI({
   output$summary <- renderPrint({
     req(data())
     df <- data()
-    cat("Data Summary\n")
-    cat("===========\n\n")
-      cat("Number of rows:", nrow(df), "\n")
-      cat("Number of columns:", ncol(df), "\n\n")
-      cat("Column names:\n")
-      cat(paste(" -", names(df)), sep = "\n")
-      cat("\n\n")
-      cat("Data types:\n")
-      for (col in names(df)) {
-        cat(" -", col, ":", class(df[[col]])[1], "\n")
-      }
-      cat("\n")
-      missing_vals <- sapply(df, function(x) sum(is.na(x)))
-      if (any(missing_vals > 0)) {
-        cat("Missing values:\n")
-        for (col in names(missing_vals)) {
-          if (missing_vals[[col]] > 0) {
-        cat(" -", col, ":", missing_vals[[col]], "\n")
-          }
+    cat("\n=== DATA PROFILE ===\n\n")
+    cat(sprintf("%-40s: %d observations", "Total records", nrow(df)))
+    cat(sprintf("\n%-40s: %d variables", "Number of features", ncol(df)))
+    
+    # Calculate complete cases
+    complete_cases <- sum(complete.cases(df))
+    cat(sprintf("\n%-40s: %d (%.1f%%)", "Complete cases", complete_cases, 
+                complete_cases/nrow(df)*100))
+    
+    # Enhanced type information
+    cat("\n\n--- Variable Types ---")
+    type_counts <- table(sapply(df, function(x) class(x)[1]))
+    for (type in names(type_counts)) {
+        cat(sprintf("\n%-12s: %d variables", type, type_counts[type]))
+    }
+    
+    # Missing values analysis
+    cat("\n\n--- Missing Values ---")
+    missing_vals <- sapply(df, function(x) sum(is.na(x)))
+    if (any(missing_vals > 0)) {
+        cat(sprintf("\n%-40s: %.1f%%", "Total missing values", 
+                    sum(missing_vals)/prod(dim(df))*100))
+        cat(sprintf("\n%-40s: %d", "Variables with missing values", 
+                    sum(missing_vals > 0)))
+        cat("\nTop variables with missingness:")
+        missing_sorted <- sort(missing_vals[missing_vals > 0], decreasing = TRUE)[1:3]
+        for (var in names(missing_sorted)) {
+            cat(sprintf("\n- %-30s: %d (%.1f%%)", var, missing_sorted[var],
+                        missing_sorted[var]/nrow(df)*100))
         }
-      } else {
-        cat("No missing values found.\n")
-      }
-      cat("\n")
-      cat("First few rows of data:\n")
-      print(utils::head(df, 5))
+    } else {
+        cat("\nNo missing values detected")
+    }
+    
+    # Numeric variable summaries
+    num_vars <- names(df)[sapply(df, is.numeric)]
+    if (length(num_vars) > 0) {
+        cat("\n\n--- Numeric Variables ---")
+        for (var in num_vars) {
+            vals <- df[[var]]
+            cat(sprintf("\n\n%s:", var))
+            cat(sprintf("\n  %-20s: %d (%.1f%%)", "Missing", sum(is.na(vals)), 
+                        mean(is.na(vals))*100))
+            cat(sprintf("\n  %-20s: %.2f [%.2f, %.2f]", "Distribution",
+                        median(vals, na.rm = TRUE), 
+                        quantile(vals, 0.25, na.rm = TRUE),
+                        quantile(vals, 0.75, na.rm = TRUE)))
+            cat(sprintf("\n  %-20s: %.2f ± %.2f (SD)", "Mean ± SD",
+                        mean(vals, na.rm = TRUE), sd(vals, na.rm = TRUE)))
+        }
+    }
+    
+    # Categorical variable summaries
+    cat_vars <- names(df)[sapply(df, function(x) is.character(x) || is.factor(x))]
+    if (length(cat_vars) > 0) {
+        cat("\n\n--- Categorical Variables ---")
+        for (var in cat_vars) {
+            vals <- df[[var]]
+            cat(sprintf("\n\n%s:", var))
+            cat(sprintf("\n  %-20s: %d (%.1f%%)", "Missing", sum(is.na(vals)), 
+                        mean(is.na(vals))*100))
+            freq <- table(vals, useNA = "always")
+            top_cats <- names(sort(freq, decreasing = TRUE)[1:3])
+            for (cat in top_cats) {
+                if (is.na(cat)) next
+                cat(sprintf("\n  %-20s: %d (%.1f%%)", cat, freq[cat], 
+                            freq[cat]/length(vals)*100))
+            }
+            if (length(unique(vals)) > 3) {
+                cat(sprintf("\n  %-20s: %d total categories", 
+                            "Unique values", length(unique(vals))))
+            }
+        }
+    }
+    
+    # Date variable summaries
+    date_vars <- names(df)[sapply(df, function(x) inherits(x, "Date"))]
+    if (length(date_vars) > 0) {
+        cat("\n\n--- Date Variables ---")
+        for (var in date_vars) {
+            vals <- df[[var]]
+            cat(sprintf("\n\n%s:", var))
+            cat(sprintf("\n  %-20s: %s", "Date range",
+                        paste(range(vals, na.rm = TRUE), collapse = " to ")))
+            cat(sprintf("\n  %-20s: %d (%.1f%%)", "Missing", sum(is.na(vals)), 
+                        mean(is.na(vals))*100))
+        }
+    }
+    
+    # Logical variable summaries
+    logi_vars <- names(df)[sapply(df, is.logical)]
+    if (length(logi_vars) > 0) {
+        cat("\n\n--- Logical Variables ---")
+        for (var in logi_vars) {
+            vals <- df[[var]]
+            cat(sprintf("\n\n%s:", var))
+            cat(sprintf("\n  %-20s: %d (%.1f%%)", "TRUE", sum(vals, na.rm = TRUE), 
+                        mean(vals, na.rm = TRUE)*100))
+            cat(sprintf("\n  %-20s: %d (%.1f%%)", "FALSE", sum(!vals, na.rm = TRUE), 
+                        mean(!vals, na.rm = TRUE)*100))
+            cat(sprintf("\n  %-20s: %d (%.1f%%)", "Missing", sum(is.na(vals)), 
+                        mean(is.na(vals))*100))
+        }
+    }
+    
+    cat("\n\n=== END OF PROFILE ===\n")
 })
 
   output$analysisParams <- renderUI({
