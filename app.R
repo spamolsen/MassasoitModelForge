@@ -15,6 +15,7 @@ suppressPackageStartupMessages({
   library(ggplot2)
   library(BSDA)
   library(openmeteo)
+  # library(mapboxer) #Not yet implemented
 })
 message("\n---\n***Starting Shiny app\n")
 # Set up Python environment
@@ -1489,8 +1490,8 @@ output$apiTabParams <- renderUI({
     
     # Parse coordinates
     coords <- as.numeric(strsplit(trimws(location), ",")[[1]])
-    lat <- coords[1]
-    lon <- coords[2]
+    lat <- coords[2]
+    lon <- coords[1]
     
     tryCatch({
       # Fetch weather data from OpenMeteo
@@ -1799,7 +1800,7 @@ prepare_response_variable <- function(df, var_name) {
                          }
                        }')
                      ))
-      },
+      }, 
 
       if (input$analysisType %in% c("glmm", "gamm")) {
         selectizeInput("randomEffect", "Random Effects:",
