@@ -1003,15 +1003,15 @@ server <- function(input, output, session) {
   # Function to safely convert columns to appropriate types
   clean_and_convert <- function(df) {
     # Function to guess and convert column types
-    convert_column <- function(x) {
+    convert_column <- function(x, col_name) {
       # Remove any non-numeric characters from potential numeric columns
       clean_x <- gsub("[^0-9.-]", "", x)
 
       # Try to convert to numeric if possible
       num_x <- suppressWarnings(as.numeric(clean_x))
       if (!all(is.na(num_x)) && !all(is.na(x) | x == "")) {
-        # Check for potential Excel serial dates (numbers between 0 and 100000)
-        if (all(num_x >= 0 & num_x <= 100000, na.rm = TRUE)) {
+        # Check for potential Excel serial dates (numbers between 0 and 100000) in date columns
+        if (grepl("date", col_name, ignore.case = TRUE) && all(num_x >= 0 & num_x <= 99999999, na.rm = TRUE)) {
           # Convert from Excel serial date (1900 date system with 1899-12-30 origin)
           return(as.Date(num_x, origin = "1899-12-30"))
         }
@@ -1023,8 +1023,8 @@ server <- function(input, output, session) {
         return(as.logical(x))
       }
 
-      # Check for dates with more specific format validation
-      if (any(grepl("^\\d{1,2}[-/]\\d{1,2}[-/]\\d{2,4}$", x, ignore.case = TRUE))) {
+      # Check for dates with more specific format validation only in date columns
+      if (grepl("date", col_name, ignore.case = TRUE) && any(grepl("^\\d{1,2}[-/]\\d{1,2}[-/]\\d{2,4}$", x, ignore.case = TRUE))) {
         # Try different date formats common in US and international formats
         formats_to_try <- c("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d", "%m-%d-%Y", "%d-%m-%Y")
         for (fmt in formats_to_try) {
@@ -1039,13 +1039,14 @@ server <- function(input, output, session) {
       return(x)
     }
 
-    # Apply conversion to each column
-    df[] <- lapply(df, function(col) {
+    # Apply conversion to each column by name
+    df[] <- lapply(names(df), function(col_name) {
+      col <- df[[col_name]]
       # Skip if column is already in a good format
       if (is.numeric(col) || is.logical(col) || inherits(col, "Date")) {
         return(col)
       }
-      convert_column(col)
+      convert_column(col, col_name)
     })
 
     return(df)
