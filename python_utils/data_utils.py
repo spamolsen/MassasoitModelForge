@@ -82,6 +82,7 @@ def append_coord(df):
             'BeaverBrook' : [42.183781,-71.101059],
 
             }
-        df['coordinates'] = df[site_column].apply(lambda x: [coordinates[x][0],coordinates[x][1]] if x in coordinates else None)
+        df['lat'] = df[site_column].apply(lambda x: coordinates[x][0] if x in coordinates else None)
+        df['lon'] = df[site_column].apply(lambda x: coordinates[x][1] if x in coordinates else None)
     return df
 

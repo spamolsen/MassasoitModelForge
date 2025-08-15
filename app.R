@@ -876,7 +876,7 @@ ui <- fluidPage(
                       )
                     )
                   ),  # Added closing parenthesis for conditionalPanel
-                  checkboxInput("appendApiData", "Append API Data", value = FALSE),
+                  checkboxInput("appendApiData", "Append API Data", value = TRUE),
                   actionButton("loadData", "Load Data", class = "btn-primary load-data-btn")
                 ),
 
@@ -1238,8 +1238,14 @@ output$apiTabParams <- renderUI({
     )
     } else if (input$apiTabSource == "Weather") {
     tagList(
-      textInput("tabApi_weatherLocation", "Location (Latitude,Longitude):", 
-               placeholder = "e.g., 42.36,-71.06"),
+      div(
+        checkboxInput("autoExtract", "Automatically extract locations", value = TRUE),
+        conditionalPanel(
+          condition = "!input.autoExtract",
+          textInput("tabApi_weatherLocation", "Location (Latitude,Longitude):", 
+                   placeholder = "e.g., 42.36,-71.06")
+        )
+      ),
       dateRangeInput("tabApi_weatherDates", "Date Range:",
                     start = if (exists("earliest_date")) get("earliest_date") else Sys.Date() - 21,
                     end = if (exists("latest_date")) get("latest_date") else Sys.Date() - 7),
@@ -1254,7 +1260,7 @@ output$apiTabParams <- renderUI({
                    "Cloud Cover" = "cloud_cover",
                    "Pressure" = "pressure_msl"
                  ),
-                 selected = "temperature_2m",
+                 selected = "temperature_2m_mean",
                  multiple = TRUE),
       # selectInput("tabApi_weatherUnit", "Unit System:",
       #            choices = c("Metric" = "metric", "Imperial" = "imperial"),
@@ -1483,25 +1489,62 @@ output$apiTabParams <- renderUI({
     
     # Validate location format
     location <- input$tabApi_weatherLocation
-    if (!grepl("^\\s*-?\\d+\\.?\\d*\\s*,\\s*-?\\d+\\.?\\d*\\s*$", location)) {
-      showNotification("Invalid location format. Use 'latitude,longitude' (e.g., 42.36,-71.06)", type = "error")
-      return()
-    }
+    # if (!grepl("^\\s*-?\\d+\\.?\\d*\\s*,\\s*-?\\d+\\.?\\d*\\s*$", location)) {
+    #   showNotification("Invalid location format. Use 'latitude,longitude' (e.g., 42.36,-71.06)", type = "error")
+    #   return()
+    # }
     
-    # Parse coordinates
+    # Parse coordinates (lat,lon)
     coords <- as.numeric(strsplit(trimws(location), ",")[[1]])
-    lat <- coords[2]
-    lon <- coords[1]
+    lat <- coords[1]
+    lon <- coords[2]
     
     tryCatch({
       # Fetch weather data from OpenMeteo
-      weather_df <- openmeteo::weather_history(
-        location = c(lat, lon),
-      start =  input$tabApi_weatherDates[1],
-      end = input$tabApi_weatherDates[2],
-        daily = input$tabApi_weatherVars,
-        # unit = input$tabApi_weatherUnit
-      )
+      if (isTRUE(input$autoExtract)) {
+        # Extract coordinates from data
+        if (!exists("coordinates", where=data()) && !all(c("lat", "lon") %in% names(data()))) {
+          stop("No coordinates found. Data must contain 'coordinates' column or 'lat'/'lon' columns.")
+        }
+        
+        # Get unique coordinate pairs
+        if ("coordinates" %in% names(data())) {
+          coords <- unique(data()$coordinates)
+          weather_dfs <- list()
+          for (coord in coords) {
+            location <- as.numeric(strsplit(coord, ",")[[1]])
+            weather_dfs[[paste(location, collapse=",")]] <- openmeteo::weather_history(
+              location = location,
+              start = input$tabApi_weatherDates[1],
+              end = input$tabApi_weatherDates[2],
+              daily = input$tabApi_weatherVars
+            )
+          }
+        } else if (all(c("lat", "lon") %in% names(data()))) {
+          # Directly use lat/lon columns with proper numeric conversion
+          unique_coords <- unique(data()[, c("lat", "lon")])
+          weather_dfs <- list()
+          for (i in 1:nrow(unique_coords)) {
+            location <- c(as.numeric(unique_coords$lat[i]), 
+                         as.numeric(unique_coords$lon[i]))
+            weather_dfs[[paste(location, collapse=",")]] <- openmeteo::weather_history(
+              location = location,
+              start = input$tabApi_weatherDates[1],
+              end = input$tabApi_weatherDates[2],
+              daily = input$tabApi_weatherVars
+            )
+          }
+        }
+        weather_df <- dplyr::bind_rows(weather_dfs, .id = "coordinates")
+      } else {
+        # Manual location entry
+        weather_df <- openmeteo::weather_history(
+          location = c(lat, lon),
+          start = input$tabApi_weatherDates[1],
+          end = input$tabApi_weatherDates[2],
+          daily = input$tabApi_weatherVars
+        )
+      }
       
       # Store API data separately
       apiData(weather_df)
