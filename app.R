@@ -1596,21 +1596,12 @@ output$apiTabParams <- renderUI({
                              by.y = c("date", "lat", "lon"),
                              all.x = TRUE)
           
-          # Validate row count unchanged
-          if (nrow(merged_data) != original_rows) {
-            showNotification(paste("Row count changed during merge (original:", original_rows,
-                                 "merged:", nrow(merged_data), ")"), type = "warning")
-          } else {
-            showNotification("Successfully merged weather data with matching dates and coordinates (lat/lon)",
-                           type = "message")
-          }
-          
           data(merged_data)
         }
       }
       
       showNotification("Successfully retrieved weather data!", type = "message")
-      
+      updateTabsetPanel(session, "sidebarTabs", selected = "Analyze")
     }, error = function(e) {
       showNotification(paste("API Error:", e$message), type = "error")
     })
