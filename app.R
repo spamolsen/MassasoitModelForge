@@ -1254,11 +1254,9 @@ output$apiTabParams <- renderUI({
                    "Min. Temperature" = "temperature_2m_min",
                    "Max. Temperature" = "temperature_2m_max",
                    "Mean Temperature" = "temperature_2m_mean",
-                   "Precipitation" = "precipitation",
-                   "Wind Speed" = "wind_speed_10m",
-                   "Humidity" = "relative_humidity_2m",
-                   "Cloud Cover" = "cloud_cover",
-                   "Pressure" = "pressure_msl"
+                   "Precipitation" = "precipitation_sum",
+                   "Wind Speed (Max)" = "wind_speed_10m_max",
+                   "Radiation" = "shortwave_radiation_sum"
                  ),
                  selected = "temperature_2m_mean",
                  multiple = TRUE),
@@ -1553,9 +1551,60 @@ output$apiTabParams <- renderUI({
       if (isTRUE(input$appendApiData)) {
         current_data <- data()
         if (!is.null(current_data) && "ReadableDate" %in% names(current_data)) {
-          merged_data <- merge(current_data, weather_df, 
-                             by.x = "ReadableDate", by.y = "date", 
+          # Validate required columns exist
+          req("ReadableDate" %in% names(current_data),
+              "date" %in% names(weather_df))
+          
+          # Handle coordinate columns
+          if ("coordinates" %in% names(current_data)) {
+            # Extract lat/lon from coordinates column
+            coord_split <- do.call(rbind, strsplit(as.character(current_data$coordinates), ","))
+            current_data$lat <- as.numeric(coord_split[,1])
+            current_data$lon <- as.numeric(coord_split[,2])
+          }
+          
+          if ("coordinates" %in% names(weather_df)) {
+            # Extract lat/lon from coordinates column
+            coord_split <- do.call(rbind, strsplit(as.character(weather_df$coordinates), ","))
+            weather_df$lat <- as.numeric(coord_split[,1])
+            weather_df$lon <- as.numeric(coord_split[,2])
+          }
+          
+          # Validate coordinate columns exist
+          if (!all(c("lat", "lon") %in% names(current_data))) {
+            showNotification("Error: 'lat' and/or 'lon' columns not found in current data", type = "error")
+            return()
+          }
+          
+          if (!all(c("lat", "lon") %in% names(weather_df))) {
+            showNotification("Error: 'lat' and/or 'lon' columns not found in weather data", type = "error")
+            return()
+          }
+          
+          # Convert coordinate columns to numeric
+          current_data$lat <- as.numeric(current_data$lat)
+          current_data$lon <- as.numeric(current_data$lon)
+          weather_df$lat <- as.numeric(weather_df$lat)
+          weather_df$lon <- as.numeric(weather_df$lon)
+          
+          # Preserve original row count from current_data
+          original_rows <- nrow(current_data)
+          
+          # Merge on date and geographic coordinates
+          merged_data <- merge(current_data, weather_df,
+                             by.x = c("ReadableDate", "lat", "lon"),
+                             by.y = c("date", "lat", "lon"),
                              all.x = TRUE)
+          
+          # Validate row count unchanged
+          if (nrow(merged_data) != original_rows) {
+            showNotification(paste("Row count changed during merge (original:", original_rows,
+                                 "merged:", nrow(merged_data), ")"), type = "warning")
+          } else {
+            showNotification("Successfully merged weather data with matching dates and coordinates (lat/lon)",
+                           type = "message")
+          }
+          
           data(merged_data)
         }
       }
