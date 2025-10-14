@@ -19,47 +19,66 @@ suppressPackageStartupMessages({
 })
 message("\n---\n***Starting Shiny app\n")
 # Set up Python environment
+# NOTE: On Posit Connect we should NOT create/update environments at runtime.
+# The deployment should provide a Python environment (Connect will set RETICULATE_PYTHON).
+# Here we keep the existing local setup but guard it so it runs only in an interactive
+# local session. On servers (like Connect) the guard will prevent environment creation.
 env_name <- "MassasoitModelForge_env"
 
-# Create/check Conda environment
-message(paste("\n***Checking for", env_name, "environment:"))
+# Helper to decide if we should perform local env creation and installs
+# Only run when interactive AND when we don't detect the CONNECT env var.
+local_env_setup_ok <- interactive() && identical(Sys.getenv("CONNECT", ""), "")
 
-if (!(env_name %in% reticulate::conda_list()$name)) {
-  reticulate::conda_create(
-    envname = env_name,
-    packages = c(paste0("python=", "3.10"))
-  )
-  message(paste("\tEnvironment created.\n"))
-} else {
-  message(paste("\tEnvironment present.\n"))
-}
+if (local_env_setup_ok) {
+  message(paste("\n***Checking for", env_name, "environment:"))
 
-installed_packages <- py_list_packages(env_name)[[3]]
-
-required_packages <- readLines("requirements.txt")
-
-missing_packages <- setdiff(gsub("([>=]).*", "", required_packages), gsub("([>=]).*", "", installed_packages))
-
-#Print list of required and missing packages if any
-if (length(missing_packages) > 0) {
-  message(paste("***Packages required:\n\t", paste(required_packages, collapse = "\n\t")))
-  message(paste("***Packages missing:\n\t", paste(missing_packages, collapse = "\n\t")))
-}
-
-# Install Python packages
-if (length(missing_packages) > 0) {
-  for (pkg in missing_packages) {
-    reticulate::py_install(
-      pkg,
+  if (!(env_name %in% tryCatch(reticulate::conda_list()$name, error = function(e) character(0)))) {
+    reticulate::conda_create(
       envname = env_name,
-      pip = TRUE,
-      ignore_installed = FALSE
+      packages = c(paste0("python=", "3.10"))
     )
+    message(paste("\tEnvironment created.\n"))
+  } else {
+    message(paste("\tEnvironment present.\n"))
+  }
+
+  installed_packages <- tryCatch(py_list_packages(env_name)[[3]], error = function(e) character(0))
+  required_packages <- if (file.exists("requirements.txt")) readLines("requirements.txt") else character(0)
+
+  missing_packages <- setdiff(gsub("([>=]).*", "", required_packages), gsub("([>=]).*", "", installed_packages))
+
+  # Print list of required and missing packages if any
+  if (length(missing_packages) > 0) {
+    message(paste("***Packages required:\n\t", paste(required_packages, collapse = "\n\t")))
+    message(paste("***Packages missing:\n\t", paste(missing_packages, collapse = "\n\t")))
+  }
+
+  # Install Python packages
+  if (length(missing_packages) > 0) {
+    for (pkg in missing_packages) {
+      reticulate::py_install(
+        pkg,
+        envname = env_name,
+        pip = TRUE,
+        ignore_installed = FALSE
+      )
+    }
+  }
+
+  # Initialize environment for local interactive session
+  reticulate::use_condaenv(env_name, required = TRUE)
+} else {
+  # Non-interactive/server runtime (e.g. Posit Connect): prefer RETICULATE_PYTHON if set
+  rpy <- Sys.getenv("RETICULATE_PYTHON", "")
+  if (nzchar(rpy)) {
+    # If Connect or admin set RETICULATE_PYTHON, use it
+    reticulate::use_python(rpy, required = TRUE)
+  } else {
+    # Otherwise, let reticulate auto-discover the available Python (do not force creation)
+    # This avoids permission issues and lets Connect manage Python.
+    message("Non-interactive session: skipping local conda env creation. Letting reticulate auto-discover Python.")
   }
 }
-
-# Initialize environment
-reticulate::use_condaenv(env_name, required = TRUE)
 
 # Check Python availability and load modules
 tryCatch({
@@ -77,6 +96,13 @@ tryCatch({
 }, error = function(e) {
   stop("Error initializing Python: ", conditionMessage(e))
 })
+
+# Debug: show Python configuration that reticulate sees at startup (helps when deploying to Connect)
+try({
+  cfg <- reticulate::py_config()
+  message("--- reticulate::py_config() ---")
+  message(capture.output(cfg))
+}, silent = TRUE)
 
 
 
